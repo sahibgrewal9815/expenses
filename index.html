@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#E9DED2">
-<title>Daily Spend</title>
+<title>Daily Spend · Family</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Questrial&display=swap" rel="stylesheet">
@@ -171,15 +171,32 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
   .today .wd,.today .dn{font-size:2.8rem}
   .month .total{font-size:2.4rem}
 }
+
+/* sign-in gate */
+.gate{position:fixed;inset:0;z-index:30;display:grid;place-items:center;padding:20px;background:rgba(233,222,210,.55);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.gate-card{width:100%;max-width:440px}
+[hidden]{display:none!important}
 </style>
 </head>
 <body>
+<div class="gate" id="gate">
+  <div class="card glass gate-card">
+    <span class="muted">Daily Spend</span>
+    <h2 style="margin-top:18px">Family expenses</h2>
+    <p class="help" id="gateText" style="margin:12px 0 18px">What's your name? The family will see it next to the expenses you add.</p>
+    <div class="field" id="nameField" style="margin-bottom:18px"><span class="ico">☺</span><input id="gateName" type="text" autocomplete="given-name" maxlength="24" placeholder="your name" aria-label="Your name"></div>
+    <button class="go" id="nameBtn"><span class="label">Start</span><span class="arrow">›</span></button>
+    <div class="msg" id="gateMsg" role="status"></div>
+  </div>
+</div>
+
 <div class="wrap">
   <div class="top">
     <span class="brand">Daily Spend</span>
     <div class="top-right">
-      <button class="sync" id="syncPill" type="button"><span class="led"></span><span id="syncText">Sheet not connected</span></button>
+      <button class="sync" id="syncPill" type="button"><span class="led"></span><span id="syncText">Connecting…</span></button>
       <span class="top-date" id="topDate"></span>
+      <button class="outline-pill" id="signOutBtn" hidden></button>
     </div>
   </div>
 
@@ -187,7 +204,7 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
     <!-- Add expense -->
     <section class="card glass" aria-labelledby="addTitle">
       <div class="row">
-        <span class="muted">New entry</span>
+        <span class="muted" id="hello">New entry</span>
         <button class="outline-pill" id="repeatBtn" title="Fill the form with your last expense">Repeat last</button>
       </div>
       <h2 id="addTitle" style="margin-top:22px">Add expense</h2>
@@ -206,7 +223,7 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
       <div class="field"><span class="ico">✎</span><input id="note" type="text" placeholder="note, e.g. petrol 5 litres" aria-label="Note"></div>
 
       <div class="foot">
-        <p>Saved on this device and copied to your Google Sheet when it's connected.</p>
+        <p>Shows up instantly for everyone in the family.</p>
         <button class="go dot-only" id="saveBtn" aria-label="Save expense"><span class="arrow">›</span></button>
       </div>
       <div class="msg" id="msg" role="status"></div>
@@ -218,7 +235,7 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
         <div class="wd" id="tWd"></div>
         <div class="dn" id="tDn"></div>
         <div class="meta">
-          <span>Spent today</span>
+          <span>Family spent today</span>
           <strong class="num" id="tTotal">₹0</strong>
           <span id="tCount">No expenses yet</span>
         </div>
@@ -261,8 +278,9 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
     <section class="card glass pie" aria-labelledby="pTitle">
       <div class="row">
         <h2 id="pTitle">Where it went</h2>
-        <div style="display:flex;gap:6px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="outline-pill" data-mode="cat" aria-pressed="true">Category</button>
+          <button class="outline-pill" data-mode="by" aria-pressed="false">Person</button>
           <button class="outline-pill" data-mode="pay" aria-pressed="false">Payment</button>
         </div>
       </div>
@@ -281,32 +299,23 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
 
     <!-- Settings -->
     <section class="card glass span2" aria-labelledby="sTitle">
-      <h3 id="sTitle">Settings and backup</h3>
+      <h3 id="sTitle">Family settings</h3>
+      <p class="help">Budget and currency are shared, so changing them updates everyone's app.</p>
       <div class="set-grid">
-        <div class="field"><span class="ico">◎</span><input id="budget" type="number" min="0" placeholder="monthly budget" aria-label="Monthly budget"></div>
+        <div class="field"><span class="ico">◎</span><input id="budget" type="number" min="0" placeholder="family monthly budget" aria-label="Monthly budget"></div>
         <div class="field"><span class="ico">¤</span><input id="currency" type="text" maxlength="3" placeholder="currency symbol" aria-label="Currency symbol"></div>
       </div>
       <div class="tools">
         <button class="outline-pill" id="csvBtn">Export CSV</button>
         <button class="outline-pill" id="jsonBtn">Download backup</button>
-        <button class="outline-pill" id="importBtn">Restore backup</button>
-        <button class="outline-pill" id="demoBtn">Add sample data</button>
+        <button class="outline-pill" id="importBtn">Upload a backup file</button>
         <input type="file" id="importFile" accept=".json" hidden>
       </div>
-
-      <h3 style="margin-top:28px" id="sheetTitle">Google Sheet backup</h3>
-      <p class="help">Every expense you add, edit or delete is copied to your Google Sheet. Paste the web app link and secret key from the setup steps.</p>
-      <div class="set-grid">
-        <div class="field"><span class="ico">⛓</span><input id="sUrl" type="url" placeholder="web app link (script.google.com/…/exec)" aria-label="Google Sheet web app link"></div>
-        <div class="field"><span class="ico">✱</span><input id="sKey" type="password" placeholder="secret key" aria-label="Secret key"></div>
+      <div id="migrate" hidden style="margin-top:22px">
+        <p class="help" id="migrateText"></p>
+        <div class="tools" style="margin-top:10px"><button class="outline-pill" id="migrateBtn">Add them to the family list</button></div>
       </div>
-      <div class="tools">
-        <button class="outline-pill" id="testBtn">Test connection</button>
-        <button class="outline-pill" id="pushAllBtn">Upload all to Sheet</button>
-        <button class="outline-pill" id="pullBtn">Load from Sheet</button>
-        <a class="outline-pill" id="openSheet" target="_blank" rel="noopener" hidden>Open my Sheet</a>
-      </div>
-      <div class="msg" id="syncMsg" role="status"></div>
+      <div class="msg" id="setMsg" role="status"></div>
     </section>
   </div>
 </div>
@@ -315,6 +324,7 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
 
 <dialog id="editDlg" aria-labelledby="eTitle">
   <h3 id="eTitle">Edit expense</h3>
+  <p class="help" id="eBy" style="margin-top:4px"></p>
   <div class="field"><span class="ico" id="eCur">₹</span><input id="eAmount" type="number" min="0" step="0.01" aria-label="Amount"></div>
   <div class="field"><span class="ico">●</span><select id="eCat" aria-label="Category"></select></div>
   <div class="field"><span class="ico">⇄</span><select id="ePay" aria-label="Paid with"></select></div>
@@ -329,7 +339,17 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
   </div>
 </dialog>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
+/* ================================================================
+   PASTE YOUR SUPABASE DETAILS HERE
+   (Supabase → your project → Connect, or Project Settings → API Keys)
+   Note: there is no login, so anyone with the website link can view
+   and edit the expenses.
+   ================================================================ */
+const SUPABASE_URL = "https://elgoewmezvdtamaoaoev.supabase.co";        // like https://abcdefgh.supabase.co
+const SUPABASE_KEY = "sb_publishable_xd1WuZ1wPUcLm1dhK5I2ug_0bb_nDWM";    // starts with sb_publishable_ (or the long "anon" key)
+
 const CATEGORIES = [
   {id:"fuel",      name:"Fuel",       color:"#FF7A1A"},
   {id:"groceries", name:"Groceries",  color:"#1E1E1E"},
@@ -341,32 +361,15 @@ const CATEGORIES = [
   {id:"shopping",  name:"Shopping",   color:"#5E5048"},
   {id:"other",     name:"Other",      color:"#CDBFB2"}
 ];
-const PAYS = [
-  {id:"UPI",color:"#FF7A1A"},{id:"Cash",color:"#1E1E1E"},{id:"Card",color:"#B08968"},{id:"Bank",color:"#CDBFB2"}
-];
-const KEY = "daily-spend-v2";
-let memory = null;
+const PAYS = [{id:"UPI",color:"#FF7A1A"},{id:"Cash",color:"#1E1E1E"},{id:"Card",color:"#B08968"},{id:"Bank",color:"#CDBFB2"}];
+const PEOPLE_COLORS = ["#FF7A1A","#1E1E1E","#B08968","#FFB074","#7F5539","#9C948E"];
 
-/* ---------- storage ---------- */
-function normalize(d){
-  d.expenses = d.expenses || []; d.currency = d.currency || "₹"; d.budget = d.budget || 0;
-  d.expenses.forEach(x=>{ if(x.pay==="Bank transfer") x.pay="Bank"; });
-  d.sync = d.sync || {url:"",key:"",sheetUrl:"",error:""};
-  d.queue = d.queue || [];
-  return d;
-}
-function load(){
-  try{
-    const raw = localStorage.getItem(KEY) || localStorage.getItem("daily-spend-v1");
-    if(raw) return normalize(JSON.parse(raw));
-  }catch(e){}
-  return normalize(memory || {});
-}
-function persist(){ memory = state; try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
-
-let state = load();
+const state = {expenses:[], budget:0, currency:"₹"};
 const ui = { cat:null, pay:"UPI", month: isoToday().slice(0,7), pieMode:"cat",
-             f:{cat:null,pay:null,day:null,q:""} };
+             f:{cat:null,pay:null,by:null,day:null,q:""} };
+const live = {ready:false, error:"", rt:"off"};
+let me = null, sb = null, channel = null;
+
 
 /* ---------- helpers ---------- */
 const $ = id => document.getElementById(id);
@@ -374,11 +377,13 @@ function isoToday(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezo
 const money = n => state.currency + Number(n).toLocaleString(undefined,{maximumFractionDigits:2});
 const catOf = id => CATEGORIES.find(c=>c.id===id) || CATEGORIES.at(-1);
 const payOf = id => PAYS.find(p=>p.id===id) || PAYS.at(-1);
-const esc = s => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function ordinal(n){ const s=["th","st","nd","rd"], v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]); }
 function daysIn(ym){ const [y,m]=ym.split("-").map(Number); return new Date(y,m,0).getDate(); }
-
+function personColor(name){
+  const names = [...new Set(state.expenses.map(x=>x.by||"Someone"))].sort();
+  return PEOPLE_COLORS[Math.max(0,names.indexOf(name)) % PEOPLE_COLORS.length];
+}
 function countUp(el, to){
   const from = parseFloat(el.dataset.v||0); el.dataset.v = to;
   if (matchMedia("(prefers-reduced-motion: reduce)").matches || from===to){ el.textContent = money(to); return; }
@@ -390,12 +395,154 @@ function countUp(el, to){
   })(t0);
 }
 
+/* ---------- Supabase: sign in, live data, offline queue ---------- */
+const configured = SUPABASE_URL.startsWith("https://");
+function loadJSON(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } }
+function saveJSON(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)+Math.random().toString(36).slice(2,10));
+let queue = loadJSON("ds-queue", []);
+function cache(){ saveJSON("ds-cache",{expenses:state.expenses, budget:state.budget, currency:state.currency}); }
+
+const fromRow = r => ({id:String(r.id), amount:Number(r.amount)||0, cat:r.cat||"other", pay:r.pay||"Cash", date:String(r.date).slice(0,10),
+                       note:r.note||"", by:r.by_name||"Someone", byEmail:r.by_email||"", t:Number(r.t)||0});
+const toRow = x => ({id:x.id, amount:x.amount, cat:x.cat, pay:x.pay, date:x.date, note:x.note||"", by_name:x.by, by_email:x.byEmail, t:x.t||Date.now()});
+
+function gate(mode){
+  $("gate").hidden = false; $("gateMsg").textContent = "";
+  $("nameField").hidden = $("nameBtn").hidden = mode !== "name";
+  $("gateText").textContent = mode === "setup"
+    ? "Supabase isn't connected yet. Paste your Project URL and key into index.html (search for PASTE YOUR SUPABASE DETAILS), then reload."
+    : "What's your name? The family will see it next to the expenses you add.";
+  if(mode === "name"){ $("gateName").value = (me && me.name) || ""; setTimeout(()=>$("gateName").focus(), 50); }
+}
+
+const firstName = u => (u && u.name) || "Someone";
+function showUser(){
+  $("signOutBtn").hidden = false; $("signOutBtn").textContent = `${me.name} · Change name`;
+  $("hello").textContent = `Hi ${me.name}`;
+}
+function setName(){
+  const n = $("gateName").value.trim();
+  if(!n){ $("gateMsg").textContent = "Type your name to continue."; return; }
+  const first = !me;
+  me = {name:n, email:""}; saveJSON("ds-name", n);
+  $("gate").hidden = true; showUser();
+  if(first) boot();
+}
+$("nameBtn").onclick = setName;
+$("gateName").addEventListener("keydown", e=>{ if(e.key==="Enter") setName(); });
+$("signOutBtn").onclick = ()=>gate("name");
+
+function boot(){
+  const c = loadJSON("ds-cache", null);                    // show last known data instantly
+  if(c){ state.expenses=c.expenses||[]; state.budget=c.budget||0; state.currency=c.currency||"₹"; live.ready=true; render(); }
+  startLive(); flush(); checkMigration();
+}
+
+if(!configured){ gate("setup"); }
+else {
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {auth:{persistSession:false}});
+  const saved = loadJSON("ds-name", "");
+  if(saved){ me = {name:saved, email:""}; showUser(); boot(); }
+  else gate("name");
+}
+
+function startLive(){
+  stopLive();
+  refetch();
+  channel = sb.channel("family-live")
+    .on("postgres_changes", {event:"*", schema:"public", table:"expenses"}, p=>{
+      if(p.eventType === "DELETE"){ state.expenses = state.expenses.filter(x=>x.id !== String(p.old.id)); }
+      else {
+        if(queue.some(o=>o.type==="delete" && o.id===String(p.new.id))) return;
+        const x = fromRow(p.new), i = state.expenses.findIndex(e=>e.id===x.id);
+        i >= 0 ? state.expenses[i] = x : state.expenses.push(x);
+      }
+      cache(); render();
+    })
+    .on("postgres_changes", {event:"*", schema:"public", table:"settings"}, p=>{ if(p.new) applySettings(p.new); })
+    .subscribe(status=>{ live.rt = status; if(status === "SUBSCRIBED") refetch(); updateSync(); });
+}
+function stopLive(){ if(channel && sb){ sb.removeChannel(channel); channel = null; } live.rt = "off"; }
+
+function applyQueue(list){
+  queue.forEach(op=>{
+    if(op.type==="upsert"){ const x=fromRow(op.row), i=list.findIndex(e=>e.id===x.id); i>=0 ? list[i]=x : list.push(x); }
+    else if(op.type==="delete"){ list = list.filter(e=>e.id!==op.id); }
+  });
+  return list;
+}
+function applySettings(s, quiet){
+  state.budget = Number(s.budget)||0; state.currency = s.currency || "₹";
+  if(document.activeElement!==$("budget"))   $("budget").value = state.budget || "";
+  if(document.activeElement!==$("currency")) $("currency").value = state.currency;
+  if(!quiet){ cache(); render(); }
+}
+
+let fetching = false;
+async function refetch(){
+  if(!me || fetching || !navigator.onLine) return;
+  fetching = true;
+  try{
+    let all = [], from = 0;
+    while(true){
+      const {data, error} = await sb.from("expenses").select("*").order("date").range(from, from+999);
+      if(error) throw error;
+      all = all.concat(data); if(data.length < 1000) break; from += 1000;
+    }
+    const {data:s} = await sb.from("settings").select("*").eq("id",1).maybeSingle();
+    state.expenses = applyQueue(all.map(fromRow));
+    if(s) applySettings(s, true);
+    live.ready = true; live.error = ""; cache(); render();
+  }catch(e){ live.error = e.message || "Couldn't load the family list."; }
+  fetching = false; updateSync();
+}
+
+function enqueue(op){ queue.push(op); saveJSON("ds-queue", queue); flush(); }
+let flushing = false;
+async function flush(){
+  if(!me || flushing || !queue.length || !navigator.onLine){ updateSync(); return; }
+  flushing = true; updateSync();
+  while(queue.length){
+    const op = queue[0]; let error = null;
+    try{
+      if(op.type==="upsert")        ({error} = await sb.from("expenses").upsert(op.row));
+      else if(op.type==="delete")   ({error} = await sb.from("expenses").delete().eq("id", op.id));
+      else if(op.type==="settings") ({error} = await sb.from("settings").update(op.values).eq("id", 1));
+    }catch(e){ error = {message:e.message, network:true}; }
+    if(error){
+      if(error.network || !navigator.onLine || /fetch|network|timeout/i.test(error.message||"")) break;   // retry later
+      toast("Couldn't save a change: " + error.message);                                                 // real problem: skip it
+    }
+    queue.shift(); saveJSON("ds-queue", queue);
+  }
+  flushing = false; updateSync();
+}
+
+function updateSync(){
+  const el=$("syncPill"), t=$("syncText");
+  el.className = "sync"; el.title = "";
+  if(!configured){ t.textContent = "Not set up"; return; }
+  if(!me){ t.textContent = "Waiting for name"; return; }
+  if(!navigator.onLine){ el.classList.add("wait"); t.textContent = queue.length ? `Offline, ${queue.length} to upload` : "Offline"; return; }
+  if(live.error){ el.classList.add("err"); t.textContent = "Sync problem, tap to retry"; el.title = live.error; return; }
+  if(flushing || queue.length){ el.classList.add("wait"); t.textContent = "Saving…"; return; }
+  if(!live.ready){ el.classList.add("wait"); t.textContent = "Connecting…"; return; }
+  if(live.rt !== "SUBSCRIBED"){ el.classList.add("wait"); t.textContent = "Reconnecting…"; return; }
+  el.classList.add("ok"); t.textContent = "Live with family";
+}
+$("syncPill").onclick = ()=>{ if(live.error) toast(live.error); live.error = ""; refetch(); flush(); };
+window.addEventListener("online", ()=>{ refetch(); flush(); });
+window.addEventListener("offline", updateSync);
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible"){ refetch(); flush(); } });
+setInterval(()=>{ if(queue.length) flush(); }, 30000);
+
+
 /* ---------- add form ---------- */
 function buildForm(){
   $("cats").innerHTML = CATEGORIES.map(c=>`<button class="cat" type="button" data-id="${c.id}" aria-pressed="${c.id===ui.cat}"><span class="dot" style="background:${c.color}"></span>${c.name}</button>`).join("");
   $("paySeg").innerHTML = PAYS.map(p=>`<button type="button" data-id="${p.id}" aria-pressed="${p.id===ui.pay}">${p.id}</button>`).join("");
   $("quick").innerHTML = [50,100,200,500,1000].map(v=>`<button class="tiny-pill" type="button" data-v="${v}">+${v}</button>`).join("");
-  $("date").value = isoToday();
   $("eCat").innerHTML = CATEGORIES.map(c=>`<option value="${c.id}">${c.name}</option>`).join("");
   $("ePay").innerHTML = PAYS.map(p=>`<option>${p.id}</option>`).join("");
 }
@@ -411,25 +558,28 @@ $("note").addEventListener("keydown", e=>{ if(e.key==="Enter") save(); });
 $("saveBtn").onclick = save;
 
 $("repeatBtn").onclick = ()=>{
-  const last = state.expenses.at(-1);
-  if(!last) return flash("Nothing to repeat yet.", true);
+  const mine = state.expenses.filter(x=>me && x.by===me.name).sort((a,b)=>(b.t||0)-(a.t||0));
+  const last = mine[0];
+  if(!last) return flash("You haven't added anything yet.", true);
   $("amount").value = last.amount; $("note").value = last.note || "";
   ui.cat = last.cat; ui.pay = last.pay; buildForm(); $("date").value = isoToday();
   flash("Filled in from your last expense. Check it, then save.");
 };
-
 function flash(t,bad){ $("msg").textContent=t; $("msg").style.color = bad ? "#C2410C" : "var(--ink)"; }
 
 function save(){
+  if(!me) return flash("Type your name first.", true);
   const amount = parseFloat($("amount").value);
   if(!amount || amount<=0) return flash("Enter an amount above zero.", true);
   if(!ui.cat) return flash("Pick a category.", true);
-  const x = {id:uid(), amount, cat:ui.cat, pay:ui.pay, date:$("date").value||isoToday(), note:$("note").value.trim()};
-  state.expenses.push(x); persist(); queueUpsert(x);
+  const x = {id:uid(), amount, cat:ui.cat, pay:ui.pay, date:$("date").value||isoToday(), note:$("note").value.trim(),
+             by:firstName(me), byEmail:me.email, t:Date.now()};
+  state.expenses.push(x); cache(); render();
+  enqueue({type:"upsert", row:toRow(x)});
   flash(`Saved ${money(amount)} for ${catOf(x.cat).name}.`);
   $("amount").value=""; $("note").value="";
   ui.month = x.date.slice(0,7);
-  render(); $("amount").focus();
+  $("amount").focus();
 }
 
 /* ---------- today card ---------- */
@@ -445,37 +595,29 @@ function renderToday(){
   const byCat = {}; items.forEach(x=>byCat[x.cat]=(byCat[x.cat]||0)+x.amount);
   const top = Object.entries(byCat).sort((a,b)=>b[1]-a[1])[0];
   $("tTop").textContent = top ? `Top: ${catOf(top[0]).name}` : "Top: none";
-
-  // daily average over days that had spending in the last 30 days (excluding today)
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-30);
-  const cut = cutoff.toISOString().slice(0,10);
-  const perDay = {};
+  const cut = cutoff.toISOString().slice(0,10), perDay = {};
   state.expenses.filter(x=>x.date>=cut && x.date<t).forEach(x=>perDay[x.date]=(perDay[x.date]||0)+x.amount);
-  const vals = Object.values(perDay);
-  const avg = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
+  const vals = Object.values(perDay), avg = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
   $("tRight").innerHTML = `Daily average<br><span class="num">${money(Math.round(avg))}</span>`;
-  const ratio = avg ? Math.min(total/avg,1.6) : (total?1:0.25);
-  const h = 100 + ratio*190, w = h/2;
-  $("sun").style.height = h+"px"; $("sun").style.width = w+"px";
+  const ratio = avg ? Math.min(total/avg,1.6) : (total?1:0.25), h = 100 + ratio*190;
+  $("sun").style.height = h+"px"; $("sun").style.width = h/2+"px";
   $("sunNote").textContent = !avg ? "Add a few days of expenses to see your daily average."
-    : total>avg ? `${money(Math.round(total-avg))} above your usual day.`
-    : `${money(Math.round(avg-total))} below your usual day.`;
+    : total>avg ? `${money(Math.round(total-avg))} above a usual day.` : `${money(Math.round(avg-total))} below a usual day.`;
 }
 $("todayBtn").onclick = ()=>{
-  const t = isoToday(); ui.month = t.slice(0,7); ui.f = {cat:null,pay:null,day:t,q:""}; $("q").value="";
+  const t = isoToday(); ui.month = t.slice(0,7); ui.f = {cat:null,pay:null,by:null,day:t,q:""}; $("q").value="";
   render(); $("lTitle").scrollIntoView({behavior:"smooth",block:"start"});
 };
 
 /* ---------- month card ---------- */
-function monthItems(){ return state.expenses.filter(x=>x.date.startsWith(ui.month)); }
+function monthItems(){ return state.expenses.filter(x=>x.date && x.date.startsWith(ui.month)); }
 function shiftMonth(d){
-  const [y,m] = ui.month.split("-").map(Number); const nd = new Date(y,m-1+d,1);
-  ui.month = `${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,"0")}`;
-  ui.f.day = null; render();
+  const [y,m] = ui.month.split("-").map(Number), nd = new Date(y,m-1+d,1);
+  ui.month = `${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,"0")}`; ui.f.day = null; render();
 }
 $("prevM").onclick = ()=>shiftMonth(-1);
 $("nextM").onclick = ()=>shiftMonth(1);
-
 function renderMonth(){
   const [y,m] = ui.month.split("-").map(Number);
   $("mName").textContent = new Date(y,m-1,1).toLocaleDateString(undefined,{month:"long",year:"numeric"});
@@ -483,12 +625,9 @@ function renderMonth(){
   countUp($("mTotal"), total);
   const bar = $("bBar");
   if(state.budget>0){
-    bar.style.display="block";
-    bar.firstElementChild.style.width = Math.min(100,total/state.budget*100)+"%";
-    $("bText").textContent = total>state.budget ? `${money(total-state.budget)} over your ${money(state.budget)} budget`
-                                                : `${money(state.budget-total)} left of ${money(state.budget)}`;
-  } else { bar.style.display="none"; $("bText").textContent = "Set a monthly budget in Settings to see what's left."; }
-
+    bar.style.display="block"; bar.firstElementChild.style.width = Math.min(100,total/state.budget*100)+"%";
+    $("bText").textContent = total>state.budget ? `${money(total-state.budget)} over the ${money(state.budget)} budget` : `${money(state.budget-total)} left of ${money(state.budget)}`;
+  } else { bar.style.display="none"; $("bText").textContent = "Set a family budget in Settings to see what's left."; }
   const n = daysIn(ui.month), per = Array(n).fill(0);
   items.forEach(x=>per[Number(x.date.slice(8,10))-1]+=x.amount);
   const max = Math.max(...per,1);
@@ -498,12 +637,11 @@ function renderMonth(){
   }).join("");
   $("axisMid").textContent = Math.ceil(n/2); $("axisEnd").textContent = n;
 }
-const days = $("days");
-days.addEventListener("mouseover", e=>{ const b=e.target.closest("button"); if(!b) return;
+const daysEl = $("days");
+daysEl.addEventListener("mouseover", e=>{ const b=e.target.closest("button"); if(!b) return;
   $("dayTip").textContent = `${new Date(b.dataset.d+"T00:00").toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"short"})}: ${money(b.dataset.v)}`; });
-days.addEventListener("mouseleave", ()=>{ $("dayTip").textContent = ui.f.day ? `Showing ${ui.f.day}. Tap again to clear.` : "Tap a bar to see that day's expenses."; });
-days.onclick = e=>{ const b=e.target.closest("button"); if(!b) return;
-  ui.f.day = ui.f.day===b.dataset.d ? null : b.dataset.d; render(); };
+daysEl.addEventListener("mouseleave", ()=>{ $("dayTip").textContent = ui.f.day ? `Showing ${ui.f.day}. Tap again to clear.` : "Tap a bar to see that day's expenses."; });
+daysEl.onclick = e=>{ const b=e.target.closest("button"); if(!b) return; ui.f.day = ui.f.day===b.dataset.d ? null : b.dataset.d; render(); };
 
 /* ---------- pie chart ---------- */
 document.querySelectorAll("[data-mode]").forEach(b=>b.onclick = ()=>{
@@ -511,42 +649,39 @@ document.querySelectorAll("[data-mode]").forEach(b=>b.onclick = ()=>{
   document.querySelectorAll("[data-mode]").forEach(x=>x.setAttribute("aria-pressed", x===b));
   renderPie();
 });
-
 function arc(a0,a1,R,r){
   const cx=100, cy=100, P=(a,rad)=>[cx+rad*Math.cos(a), cy+rad*Math.sin(a)];
   if(a1-a0>=Math.PI*2-1e-6) a1 = a0+Math.PI*2-0.0001;
   const L = a1-a0>Math.PI?1:0, [x0,y0]=P(a0,R), [x1,y1]=P(a1,R), [x2,y2]=P(a1,r), [x3,y3]=P(a0,r);
   return `M${x0},${y0} A${R},${R} 0 ${L} 1 ${x1},${y1} L${x2},${y2} A${r},${r} 0 ${L} 0 ${x3},${y3} Z`;
 }
-
+function metaFor(key,id){
+  if(key==="cat") return catOf(id);
+  if(key==="pay") return {name:id, color:payOf(id).color};
+  return {name:id, color:personColor(id)};
+}
 function renderPie(){
-  const items = monthItems(), total = items.reduce((s,x)=>s+x.amount,0);
-  const wrap = $("pieWrap");
-  if(!total){ wrap.innerHTML = `<div class="empty-chart">No spending this month yet. Your chart appears after the first expense.</div>`; return; }
+  const items = monthItems(), total = items.reduce((s,x)=>s+x.amount,0), wrap = $("pieWrap");
+  if(!total){ wrap.innerHTML = `<div class="empty-chart">No spending this month yet. The chart appears after the first expense.</div>`; return; }
   const key = ui.pieMode, groups = {};
-  items.forEach(x=>groups[x[key]]=(groups[x[key]]||0)+x.amount);
-  const rows = Object.entries(groups).sort((a,b)=>b[1]-a[1]).map(([id,v])=>{
-    const meta = key==="cat" ? catOf(id) : {name:id, color:payOf(id).color};
-    return {id, v, name:meta.name, color:meta.color};
-  });
+  items.forEach(x=>{ const k = x[key] || "Someone"; groups[k]=(groups[k]||0)+x.amount; });
+  const rows = Object.entries(groups).sort((a,b)=>b[1]-a[1]).map(([id,v])=>({id, v, ...metaFor(key,id)}));
   const active = ui.f[key];
   let a = -Math.PI/2;
   const paths = rows.map(r=>{
     const a0=a, a1=a+r.v/total*Math.PI*2; a=a1;
     const mid=(a0+a1)/2, dx=Math.cos(mid)*7, dy=Math.sin(mid)*7;
-    const dim = active && active!==r.id ? 'opacity:.3;' : '';
-    const pushed = active===r.id ? `transform:translate(${dx}px,${dy}px);` : '';
-    return `<path d="${arc(a0,a1,92,58)}" fill="${r.color}" stroke="#F3ECE4" stroke-width="2" data-id="${r.id}" data-dx="${dx}" data-dy="${dy}" style="${dim}${pushed}" tabindex="0" role="button" aria-label="${esc(r.name)} ${money(r.v)}"></path>`;
+    const dim = active && active!==r.id ? 'opacity:.3;' : '', pushed = active===r.id ? `transform:translate(${dx}px,${dy}px);` : '';
+    return `<path d="${arc(a0,a1,92,58)}" fill="${r.color}" stroke="#F3ECE4" stroke-width="2" data-id="${esc(r.id)}" data-dx="${dx}" data-dy="${dy}" style="${dim}${pushed}" tabindex="0" role="button" aria-label="${esc(r.name)} ${money(r.v)}"></path>`;
   }).join("");
   const sel = rows.find(r=>r.id===active);
   wrap.innerHTML = `
     <div class="pie"><svg viewBox="0 0 200 200" class="pop">${paths}
       <text x="100" y="98" text-anchor="middle" class="center-big" id="pcBig">${money(sel?sel.v:total)}</text>
       <text x="100" y="116" text-anchor="middle" class="center-small" id="pcSmall">${sel?esc(sel.name):"total this month"}</text></svg></div>
-    <div class="legend">${rows.map(r=>`<button data-id="${r.id}" aria-pressed="${active===r.id}">
+    <div class="legend">${rows.map(r=>`<button data-id="${esc(r.id)}" aria-pressed="${active===r.id}">
       <span class="dot" style="background:${r.color}"></span><span>${esc(r.name)}</span>
       <span class="num">${money(r.v)}</span><span class="pct num">${Math.round(r.v/total*100)}%</span></button>`).join("")}</div>`;
-
   const showC = r=>{ $("pcBig").textContent = money(r?r.v:(sel?sel.v:total)); $("pcSmall").textContent = r?`${r.name} · ${Math.round(r.v/total*100)}%`:(sel?sel.name:"total this month"); };
   const hover = (id,on)=>{
     const p = wrap.querySelector(`path[data-id="${CSS.escape(id)}"]`), l = wrap.querySelector(`.legend button[data-id="${CSS.escape(id)}"]`);
@@ -566,23 +701,23 @@ function renderPie(){
 
 /* ---------- list ---------- */
 $("q").addEventListener("input", e=>{ ui.f.q = e.target.value.toLowerCase(); renderList(); });
-
 function renderFilters(){
   const chips = [];
   if(ui.f.cat) chips.push(["cat", catOf(ui.f.cat).name]);
+  if(ui.f.by)  chips.push(["by", ui.f.by]);
   if(ui.f.pay) chips.push(["pay", ui.f.pay]);
   if(ui.f.day) chips.push(["day", new Date(ui.f.day+"T00:00").toLocaleDateString(undefined,{day:"numeric",month:"short"})]);
-  $("filters").innerHTML = chips.map(([k,l])=>`<button class="fchip" data-k="${k}">${esc(l)} <span aria-hidden="true">✕</span><span class="sr" style="position:absolute;left:-9999px">remove filter</span></button>`).join("") +
+  $("filters").innerHTML = chips.map(([k,l])=>`<button class="fchip" data-k="${k}" aria-label="Remove filter ${esc(l)}">${esc(l)} <span aria-hidden="true">✕</span></button>`).join("") +
     (chips.length>1 ? `<button class="fchip" data-k="all">Clear all</button>` : "");
 }
 $("filters").onclick = e=>{ const b=e.target.closest(".fchip"); if(!b) return;
-  if(b.dataset.k==="all") ui.f = {cat:null,pay:null,day:null,q:ui.f.q}; else ui.f[b.dataset.k]=null; render(); };
-
+  if(b.dataset.k==="all") ui.f = {cat:null,pay:null,by:null,day:null,q:ui.f.q}; else ui.f[b.dataset.k]=null; render(); };
 function renderList(){
   const f = ui.f;
-  const shown = monthItems().filter(x=>(!f.cat||x.cat===f.cat)&&(!f.pay||x.pay===f.pay)&&(!f.day||x.date===f.day)
-     &&(!f.q || (x.note||"").toLowerCase().includes(f.q) || catOf(x.cat).name.toLowerCase().includes(f.q)))
-     .sort((a,b)=>b.date.localeCompare(a.date));
+  if(me && !live.ready){ $("list").innerHTML = `<div class="empty">Loading the family's expenses…</div>`; return; }
+  const shown = monthItems().filter(x=>(!f.cat||x.cat===f.cat)&&(!f.pay||x.pay===f.pay)&&(!f.by||(x.by||"Someone")===f.by)&&(!f.day||x.date===f.day)
+     &&(!f.q || (x.note||"").toLowerCase().includes(f.q) || catOf(x.cat).name.toLowerCase().includes(f.q) || (x.by||"").toLowerCase().includes(f.q)))
+     .sort((a,b)=>b.date.localeCompare(a.date) || (b.t||0)-(a.t||0));
   if(!shown.length){ $("list").innerHTML = `<div class="empty">${monthItems().length?"Nothing matches these filters.":"No expenses this month. Add one above."}</div>`; return; }
   const groups = {}; shown.forEach(x=>(groups[x.date]=groups[x.date]||[]).push(x));
   $("list").innerHTML = Object.entries(groups).map(([d,arr])=>{
@@ -590,18 +725,19 @@ function renderList(){
     return `<div class="day-group"><div class="day-head"><span>${label}</span><span class="num">${money(arr.reduce((s,x)=>s+x.amount,0))}</span></div>` +
       arr.map(x=>{ const c=catOf(x.cat); return `<div class="item" data-id="${x.id}" tabindex="0" role="button" aria-label="Edit ${esc(c.name)} ${money(x.amount)}">
         <span class="av" style="background:${c.color};${c.id==='other'||c.id==='bills'?'color:#1E1E1E':''}">${c.name[0]}</span>
-        <span class="info">${esc(c.name)}<small>${esc(x.pay)}${x.note?" · "+esc(x.note):""}</small></span>
+        <span class="info">${esc(c.name)}<small>${esc(x.by||"Someone")} · ${esc(x.pay)}${x.note?" · "+esc(x.note):""}</small></span>
         <span class="amt num">${money(x.amount)}</span></div>`; }).join("") + `</div>`;
   }).join("");
 }
 $("list").addEventListener("click", e=>{ const it=e.target.closest(".item"); if(it) openEdit(it.dataset.id); });
 $("list").addEventListener("keydown", e=>{ const it=e.target.closest(".item"); if(it && (e.key==="Enter"||e.key===" ")){ e.preventDefault(); openEdit(it.dataset.id);} });
 
-/* ---------- edit dialog + undo ---------- */
+/* ---------- edit, delete, undo ---------- */
 let editing = null;
 function openEdit(id){
   editing = state.expenses.find(x=>x.id===id); if(!editing) return;
   $("eCur").textContent = state.currency;
+  $("eBy").textContent = `Added by ${editing.by||"someone"}`;
   $("eAmount").value = editing.amount; $("eCat").value = editing.cat; $("ePay").value = editing.pay;
   $("eDate").value = editing.date; $("eNote").value = editing.note||"";
   $("editDlg").showModal();
@@ -609,157 +745,93 @@ function openEdit(id){
 $("eCancel").onclick = ()=>$("editDlg").close();
 $("eSave").onclick = ()=>{
   const a = parseFloat($("eAmount").value); if(!a||a<=0) return $("eAmount").focus();
-  Object.assign(editing,{amount:a,cat:$("eCat").value,pay:$("ePay").value,date:$("eDate").value||editing.date,note:$("eNote").value.trim()});
-  delete editing.demo; persist(); queueUpsert(editing); $("editDlg").close(); render(); toast("Changes saved.");
+  Object.assign(editing, {amount:a, cat:$("eCat").value, pay:$("ePay").value, date:$("eDate").value||editing.date, note:$("eNote").value.trim()});
+  cache(); render(); enqueue({type:"upsert", row:toRow(editing)});
+  $("editDlg").close(); toast("Changes saved.");
 };
 $("eDel").onclick = ()=>{
-  const idx = state.expenses.indexOf(editing), removed = editing;
-  state.expenses.splice(idx,1); persist(); queueDelete(removed); $("editDlg").close(); render();
-  toast(`Deleted ${money(removed.amount)}.`, ()=>{ state.expenses.splice(idx,0,removed); persist(); queueUpsert(removed); render(); toast("Expense restored."); });
+  const removed = editing;
+  state.expenses = state.expenses.filter(x=>x.id!==removed.id); cache(); render();
+  enqueue({type:"delete", id:removed.id});
+  $("editDlg").close();
+  toast(`Deleted ${money(removed.amount)}.`, ()=>{ state.expenses.push(removed); cache(); render(); enqueue({type:"upsert", row:toRow(removed)}); toast("Expense restored."); });
 };
-
 let toastTimer;
 function toast(text, undo){
   $("toastText").textContent = text;
   $("toastBtn").style.display = undo ? "" : "none";
   $("toastBtn").onclick = ()=>{ $("toast").classList.remove("show"); undo && undo(); };
   $("toast").classList.add("show"); clearTimeout(toastTimer);
-  toastTimer = setTimeout(()=>$("toast").classList.remove("show"), undo?5000:2200);
+  toastTimer = setTimeout(()=>$("toast").classList.remove("show"), undo?5000:2600);
 }
 
-/* ---------- settings ---------- */
-$("budget").onchange = e=>{ state.budget = parseFloat(e.target.value)||0; persist(); render(); };
-$("currency").onchange = e=>{ state.currency = e.target.value.trim()||"₹"; persist(); render(); };
+/* ---------- settings, backup, moving old data ---------- */
+function setMsg(t,bad){ $("setMsg").textContent=t; $("setMsg").style.color = bad ? "#C2410C" : "var(--ink)"; }
+const saveSetting = obj => { if(!me) return; Object.assign(state, obj); cache(); render(); enqueue({type:"settings", values:obj}); };
+$("budget").onchange = e=>saveSetting({budget: parseFloat(e.target.value)||0});
+$("currency").onchange = e=>saveSetting({currency: e.target.value.trim()||"₹"});
+
 function download(name,text,type){ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type})); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
 $("csvBtn").onclick = ()=>{
-  const rows=[["Date","Category","Amount","Paid with","Note"],...[...state.expenses].sort((a,b)=>a.date.localeCompare(b.date)).map(x=>[x.date,catOf(x.cat).name,x.amount,x.pay,x.note||""])];
-  download("expenses.csv", rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n"), "text/csv");
+  const rows=[["Date","Category","Amount","Paid with","Added by","Note"],...[...state.expenses].sort((a,b)=>a.date.localeCompare(b.date)).map(x=>[x.date,catOf(x.cat).name,x.amount,x.pay,x.by||"",x.note||""])];
+  download("family-expenses.csv", rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n"), "text/csv");
 };
-$("jsonBtn").onclick = ()=>download(`daily-spend-backup-${isoToday()}.json`, JSON.stringify(state,null,2), "application/json");
+$("jsonBtn").onclick = ()=>{
+  const clean = state.expenses;
+  download(`family-expenses-backup-${isoToday()}.json`, JSON.stringify({expenses:clean,budget:state.budget,currency:state.currency},null,2), "application/json");
+};
+
+async function uploadList(list){
+  if(!me) throw new Error("Type your name first.");
+  if(!navigator.onLine) throw new Error("Connect to the internet first.");
+  const existing = new Set(state.expenses.map(x=>x.id));
+  const rows = list.filter(x=>x && Number(x.amount)>0 && x.date && !x.demo && !existing.has(String(x.id)))
+    .map(x=>toRow({id:String(x.id||uid()), amount:Number(x.amount), cat:x.cat||"other", pay:x.pay==="Bank transfer"?"Bank":(x.pay||"Cash"),
+                   date:String(x.date).slice(0,10), note:x.note||"", by:x.by||firstName(me), byEmail:x.byEmail||me.email, t:x.t||Date.now()}));
+  for(let i=0;i<rows.length;i+=500){
+    const {error} = await sb.from("expenses").upsert(rows.slice(i,i+500));
+    if(error) throw new Error(error.message);
+  }
+  await refetch();
+  return rows.length;
+}
 $("importBtn").onclick = ()=>$("importFile").click();
 $("importFile").onchange = e=>{
   const file=e.target.files[0]; if(!file) return; const r=new FileReader();
-  r.onload=()=>{ try{ const d=JSON.parse(r.result); if(!Array.isArray(d.expenses)) throw 0;
-    const keepSync = state.sync; state = normalize(d); if(!state.sync.url) state.sync = keepSync; persist(); init(); toast("Backup restored."); }
-    catch{ toast("That file isn't a Daily Spend backup."); } };
+  r.onload = async ()=>{
+    try{ const d=JSON.parse(r.result); if(!Array.isArray(d.expenses)) throw new Error("bad");
+      setMsg("Uploading…"); const n = await uploadList(d.expenses);
+      setMsg(n ? `Added ${n} expense${n>1?"s":""} from the backup.` : "Everything in that backup is already in the family list."); }
+    catch(err){ setMsg(err.message==="bad" ? "That file isn't a Daily Spend backup." : err.message, true); }
+  };
   r.readAsText(file); e.target.value="";
 };
-$("demoBtn").onclick = ()=>{
-  const notes={fuel:["Petrol 5L","Petrol full tank"],groceries:["Vegetables","Monthly ration","Milk & bread"],office:["Printer paper","Team lunch"],bills:["Electricity","Mobile recharge","Internet"],food:["Dinner out","Chai & snacks"],travel:["Auto","Metro card"],health:["Pharmacy"],shopping:["T-shirt"],other:["Gift"]};
-  const ranges={fuel:[300,1500],groceries:[80,2500],office:[100,1200],bills:[199,2400],food:[60,900],travel:[30,400],health:[100,800],shopping:[400,2000],other:[100,600]};
-  const today=new Date();
-  for(let i=0;i<40;i++){
-    const d=new Date(today); d.setDate(today.getDate()-Math.floor(Math.random()*28));
-    const c=CATEGORIES[Math.floor(Math.random()*CATEGORIES.length)].id, [lo,hi]=ranges[c];
-    d.setMinutes(d.getMinutes()-d.getTimezoneOffset());
-    state.expenses.push({id:uid(),amount:Math.round(lo+Math.random()*(hi-lo)),cat:c,pay:PAYS[Math.floor(Math.random()*4)].id,date:d.toISOString().slice(0,10),note:notes[c][Math.floor(Math.random()*notes[c].length)],demo:true});
-  }
-  persist(); render();
-  toast("Added 40 sample expenses.", ()=>{ state.expenses=state.expenses.filter(x=>!x.demo); persist(); render(); toast("Sample data removed."); });
-};
 
-/* ---------- Google Sheet sync ---------- */
-const toRow = x => ({id:x.id, date:x.date, category:catOf(x.cat).name, amount:x.amount, pay:x.pay, note:x.note||""});
-function queueUpsert(x){ if(x.demo) return; state.queue.push({op:"upsert", e:toRow(x)}); persist(); flush(); }
-function queueDelete(x){ if(x.demo) return; state.queue.push({op:"delete", id:x.id}); persist(); flush(); }
-const connected = () => !!(state.sync.url && state.sync.key);
-let flushing = false;
-
-async function sheetFetch(url, opts){
-  let res;
-  try { res = await fetch(url, opts); }
-  catch(e){ throw new Error(navigator.onLine ? "Couldn't reach the Sheet. Check the link is the web app URL ending in /exec and access is set to Anyone." : "You're offline. Changes will sync when you're back online."); }
-  let d; try { d = await res.json(); } catch(e){ throw new Error("The link didn't answer like the expense script. Check you deployed it as a Web app."); }
-  if(!d.ok) throw new Error(d.error || "The Sheet refused the request.");
-  return d;
-}
-
-async function flush(){
-  updateSync();
-  if(!connected() || !state.queue.length || flushing) return;
-  flushing = true; updateSync();
-  const batch = state.queue.slice(0, 200);
+function oldLocalExpenses(){
   try{
-    await sheetFetch(state.sync.url, {method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"},
-      body: JSON.stringify({key:state.sync.key, ops:batch})});
-    state.queue = state.queue.slice(batch.length);
-    state.sync.error = ""; persist();
-  }catch(err){ state.sync.error = err.message; persist(); }
-  flushing = false; updateSync();
-  if(state.queue.length && !state.sync.error) flush();
+    if(localStorage.getItem("ds-moved")) return [];
+    const raw = localStorage.getItem("daily-spend-v2") || localStorage.getItem("daily-spend-v1");
+    return raw ? (JSON.parse(raw).expenses||[]).filter(x=>!x.demo) : [];
+  }catch(e){ return []; }
 }
-
-function updateSync(){
-  const el = $("syncPill"), t = $("syncText"), n = state.queue.length, s = state.sync;
-  el.className = "sync"; el.title = "";
-  if(!connected()){ t.textContent = "Sheet not connected"; return; }
-  if(flushing){ el.classList.add("wait"); t.textContent = "Syncing…"; return; }
-  if(s.error){ el.classList.add("err"); t.textContent = n ? `${n} not synced, tap to retry` : "Sync problem"; el.title = s.error; return; }
-  if(n){ el.classList.add("wait"); t.textContent = `${n} waiting to sync`; return; }
-  el.classList.add("ok"); t.textContent = "Saved to Google Sheet";
+function checkMigration(){
+  const old = oldLocalExpenses();
+  $("migrate").hidden = !old.length;
+  if(old.length) $("migrateText").textContent = `This phone still has ${old.length} expense${old.length>1?"s":""} from the old version that only you can see.`;
 }
-$("syncPill").onclick = ()=>{
-  if(!connected()){ $("sheetTitle").scrollIntoView({behavior:"smooth",block:"center"}); $("sUrl").focus({preventScroll:true}); return; }
-  if(state.sync.error) smsg(state.sync.error, true);
-  state.sync.error = ""; flush();
+$("migrateBtn").onclick = async ()=>{
+  try{ setMsg("Moving…"); const n = await uploadList(oldLocalExpenses());
+    try{ localStorage.setItem("ds-moved","1"); }catch(e){}
+    $("migrate").hidden = true; setMsg(`Moved ${n} expense${n===1?"":"s"} to the family list.`); }
+  catch(err){ setMsg(err.message, true); }
 };
-function smsg(t,bad){ $("syncMsg").textContent = t; $("syncMsg").style.color = bad ? "#C2410C" : "var(--ink)"; }
-function showOpen(){ const a=$("openSheet"); if(state.sync.sheetUrl){ a.href=state.sync.sheetUrl; a.hidden=false; } else a.hidden=true; }
-
-async function callSheet(action){
-  if(!connected()) throw new Error("Paste your web app link and secret key first.");
-  const d = await sheetFetch(`${state.sync.url}?action=${action}&key=${encodeURIComponent(state.sync.key)}`);
-  if(d.sheetUrl){ state.sync.sheetUrl = d.sheetUrl; persist(); showOpen(); }
-  return d;
-}
-$("sUrl").onchange = e=>{ state.sync.url = e.target.value.trim(); state.sync.error=""; persist(); updateSync(); };
-$("sKey").onchange = e=>{ state.sync.key = e.target.value.trim(); state.sync.error=""; persist(); updateSync(); };
-
-$("testBtn").onclick = async()=>{
-  state.sync.url = $("sUrl").value.trim(); state.sync.key = $("sKey").value.trim(); persist();
-  smsg("Checking…");
-  try{ const d = await callSheet("ping"); state.sync.error=""; persist();
-    smsg(`Connected. Your Sheet has ${d.rows} expense${d.rows===1?"":"s"}.${state.expenses.some(x=>!x.demo)&&!d.rows?" Tap Upload all to Sheet to copy what's already in the app.":""}`);
-    flush(); }
-  catch(err){ smsg(err.message, true); }
-  updateSync();
-};
-$("pushAllBtn").onclick = ()=>{
-  if(!connected()) return smsg("Paste your web app link and secret key first.", true);
-  const real = state.expenses.filter(x=>!x.demo);
-  if(!real.length) return smsg("No expenses to upload yet.", true);
-  real.forEach(x=>state.queue.push({op:"upsert", e:toRow(x)})); persist();
-  smsg(`Uploading ${real.length} expense${real.length>1?"s":""}. Watch the status at the top.`);
-  state.sync.error = ""; flush();
-};
-$("pullBtn").onclick = async()=>{
-  smsg("Loading from your Sheet…");
-  try{
-    const d = await callSheet("list");
-    const pendingUp = new Set(state.queue.filter(o=>o.op==="upsert").map(o=>o.e.id));
-    const pendingDel = new Set(state.queue.filter(o=>o.op==="delete").map(o=>o.id));
-    const fromSheet = d.expenses.filter(x=>!pendingUp.has(x.id) && !pendingDel.has(x.id)).map(x=>({
-      id:x.id, date:x.date, amount:Number(x.amount)||0,
-      cat:(CATEGORIES.find(c=>c.name===x.category)||CATEGORIES.at(-1)).id,
-      pay: PAYS.some(p=>p.id===x.pay) ? x.pay : "Cash", note:x.note||""}));
-    const keep = state.expenses.filter(x=>pendingUp.has(x.id) || x.demo);
-    state.expenses = [...fromSheet, ...keep]; persist(); render();
-    smsg(`Loaded ${fromSheet.length} expense${fromSheet.length===1?"":"s"} from your Sheet.`);
-  }catch(err){ smsg(err.message, true); }
-};
-window.addEventListener("online", ()=>{ state.sync.error=""; flush(); });
-setInterval(()=>{ if(state.queue.length && !flushing){ state.sync.error=""; flush(); } }, 60000);
 
 /* ---------- boot ---------- */
 function render(){ $("curSym").textContent = state.currency; renderToday(); renderMonth(); renderPie(); renderFilters(); renderList(); }
-function init(){
-  buildForm();
-  $("budget").value = state.budget||""; $("currency").value = state.currency;
-  $("curSym").textContent = state.currency;
-  $("sUrl").value = state.sync.url || ""; $("sKey").value = state.sync.key || "";
-  showOpen(); render(); flush();
-}
-init();
+buildForm();
+$("date").value = isoToday();
+render(); updateSync();
 </script>
 </body>
+
 </html>
