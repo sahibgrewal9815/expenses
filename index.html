@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#E9DED2">
 <title>Daily Spend · Family</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Daily Spend">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Questrial&display=swap" rel="stylesheet">
@@ -194,6 +201,7 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
   <div class="top">
     <span class="brand">Daily Spend</span>
     <div class="top-right">
+      <button class="outline-pill" id="installBtn" type="button" hidden>Install app</button>
       <button class="sync" id="syncPill" type="button"><span class="led"></span><span id="syncText">Connecting…</span></button>
       <span class="top-date" id="topDate"></span>
       <button class="outline-pill" id="signOutBtn" hidden></button>
@@ -825,6 +833,23 @@ $("migrateBtn").onclick = async ()=>{
     $("migrate").hidden = true; setMsg(`Moved ${n} expense${n===1?"":"s"} to the family list.`); }
   catch(err){ setMsg(err.message, true); }
 };
+
+/* ---------- install as an app ---------- */
+if("serviceWorker" in navigator){
+  window.addEventListener("load", ()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+}
+let installEvt = null;
+const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+window.addEventListener("beforeinstallprompt", e=>{ e.preventDefault(); installEvt = e; if(!standalone) $("installBtn").hidden = false; });
+window.addEventListener("appinstalled", ()=>{ $("installBtn").hidden = true; installEvt = null; toast("Installed. Open Daily Spend from your home screen."); });
+$("installBtn").onclick = async ()=>{
+  if(!installEvt) return;
+  installEvt.prompt(); await installEvt.userChoice; installEvt = null; $("installBtn").hidden = true;
+};
+// iPhone has no install button: show a hint once
+if(/iphone|ipad/i.test(navigator.userAgent) && !standalone && !loadJSON("ds-ios-hint", false)){
+  setTimeout(()=>{ toast("To install: tap Share, then Add to Home Screen."); saveJSON("ds-ios-hint", true); }, 2500);
+}
 
 /* ---------- boot ---------- */
 function render(){ $("curSym").textContent = state.currency; renderToday(); renderMonth(); renderPie(); renderFilters(); renderList(); }
