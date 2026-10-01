@@ -191,6 +191,16 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
 .list-seg{max-width:340px;margin-top:14px;background:var(--panel)}
 .list-seg button[aria-pressed="true"]{background:#fff}
 
+/* line graph */
+.line-wrap{margin-top:10px;position:relative}
+.line-wrap svg{width:100%;height:auto;display:block;touch-action:pan-y}
+.line-wrap .ax{font-size:11px;fill:var(--muted);font-family:inherit}
+.line-wrap .grid{stroke:var(--line);stroke-width:1}
+.lg{display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin-top:14px;font-size:.88rem;color:var(--muted)}
+.lg i{display:inline-block;width:18px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.line-tip{min-height:1.5em;margin-top:10px;font-size:.92rem}
+.line-tip .in{color:#2F7D5B}.line-tip .out{color:#E8650F}
+
 /* sign-in gate */
 .gate{position:fixed;inset:0;z-index:30;display:grid;place-items:center;padding:20px;background:rgba(233,222,210,.55);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
 .gate-card{width:100%;max-width:440px}
@@ -320,6 +330,21 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
       <div class="pie-wrap" id="pieWrap"></div>
     </section>
 
+    <!-- Line graph -->
+    <section class="card white span2" aria-labelledby="gTitle">
+      <div class="row">
+        <h2 id="gTitle">Money in vs out</h2>
+        <div style="display:flex;gap:6px;flex-wrap:wrap" id="gModes">
+          <button class="outline-pill" data-g="month" aria-pressed="true">This month</button>
+          <button class="outline-pill" data-g="6m" aria-pressed="false">6 months</button>
+          <button class="outline-pill" data-g="12m" aria-pressed="false">12 months</button>
+        </div>
+      </div>
+      <div class="lg"><span><i style="background:#2F7D5B"></i>Income</span><span><i style="background:#FF7A1A"></i>Expenses</span><span id="gNote"></span></div>
+      <div class="line-wrap" id="lineWrap"></div>
+      <div class="line-tip" id="lineTip" role="status"></div>
+    </section>
+
     <!-- List -->
     <section class="card white span2" aria-labelledby="lTitle">
       <div class="row">
@@ -414,7 +439,7 @@ const PAYS = [{id:"UPI",color:"#FF7A1A"},{id:"Cash",color:"#1E1E1E"},{id:"Card",
 const PEOPLE_COLORS = ["#FF7A1A","#1E1E1E","#B08968","#FFB074","#7F5539","#9C948E"];
 
 const state = {expenses:[], incomes:[], budget:0, currency:"₹"};
-const ui = { kind:"expense", listType:"all", cat:null, pay:"UPI", month: isoToday().slice(0,7), pieMode:"cat",
+const ui = { kind:"expense", listType:"all", gMode:"month", cat:null, pay:"UPI", month: isoToday().slice(0,7), pieMode:"cat",
              f:{cat:null,pay:null,by:null,source:null,day:null,q:""} };
 const EMPTY_F = () => ({cat:null,pay:null,by:null,source:null,day:null,q:ui.f.q});
 const live = {ready:false, error:"", rt:"off"};
@@ -606,6 +631,7 @@ function buildForm(){
   $("addTitle").textContent = inc ? "Add income" : "Add expense";
   $("saveBtn").setAttribute("aria-label", inc ? "Save income" : "Save expense");
   $("srcField").hidden = !inc;
+  $("cats").hidden = inc;
   $("paySeg").setAttribute("aria-label", inc ? "Received in" : "Paid with");
   $("note").placeholder = inc ? "note, e.g. October salary" : "note, e.g. petrol 5 litres";
   $("srcList").innerHTML = [...new Set(state.incomes.map(x=>x.source).filter(Boolean))].sort().map(n=>`<option value="${esc(n)}">`).join("");
@@ -642,10 +668,10 @@ function save(){
   if(!me) return flash("Type your name first.", true);
   const amount = parseFloat($("amount").value);
   if(!amount || amount<=0) return flash("Enter an amount above zero.", true);
-  if(!ui.cat) return flash("Pick a category.", true);
   const inc = ui.kind === "income", source = $("source").value.trim();
+  if(!inc && !ui.cat) return flash("Pick a category.", true);
   if(inc && !source){ $("source").focus(); return flash("Add who this income is from.", true); }
-  const x = {id:uid(), amount, cat:ui.cat, pay:ui.pay, date:$("date").value||isoToday(), note:$("note").value.trim(),
+  const x = {id:uid(), amount, cat: inc ? "other_in" : ui.cat, pay:ui.pay, date:$("date").value||isoToday(), note:$("note").value.trim(),
              by:firstName(me), byEmail:me.email, t:Date.now(), kind:ui.kind, source: inc ? source : ""};
   (inc ? state.incomes : state.expenses).push(x); cache(); render();
   enqueue({type:"upsert", row:toRow(x)});
@@ -779,6 +805,126 @@ function renderPie(){
   });
 }
 
+/* ---------- line graph: income vs expenses ---------- */
+$("gModes").onclick = e=>{ const b=e.target.closest("[data-g]"); if(!b) return; ui.gMode = b.dataset.g;
+  $("gModes").querySelectorAll("[data-g]").forEach(x=>x.setAttribute("aria-pressed", x===b)); renderLine(); };
+function shortMoney(n){
+  const a = Math.abs(n), c = state.currency;
+  if(a >= 1e7) return c + +(n/1e7).toFixed(1) + "Cr";
+  if(a >= 1e5) return c + +(n/1e5).toFixed(1) + "L";
+  if(a >= 1e3) return c + +(n/1e3).toFixed(1) + "k";
+  return c + Math.round(n);
+}
+function niceMax(v){
+  if(v <= 0) return 100;
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  return [1,2,2.5,5,10].map(m=>m*p).find(x=>x >= v);
+}
+function lineData(){
+  const labels=[], tips=[], inn=[], out=[];
+  if(ui.gMode === "month"){
+    const n = daysIn(ui.month), today = isoToday(), cur = today.slice(0,7);
+    const last = ui.month === cur ? Number(today.slice(8,10)) : (ui.month > cur ? 0 : n);
+    const pi = Array(n).fill(0), po = Array(n).fill(0);
+    monthIncomes().forEach(x=>pi[Number(x.date.slice(8,10))-1] += x.amount);
+    monthItems().forEach(x=>po[Number(x.date.slice(8,10))-1] += x.amount);
+    let ci = 0, co = 0;
+    for(let i=0;i<n;i++){
+      ci += pi[i]; co += po[i];
+      labels.push(String(i+1));
+      tips.push(new Date(`${ui.month}-${String(i+1).padStart(2,"0")}T00:00`).toLocaleDateString(undefined,{day:"numeric",month:"short"}) + " (running total)");
+      inn.push(i < last ? ci : null); out.push(i < last ? co : null);
+    }
+  } else {
+    const N = ui.gMode === "6m" ? 6 : 12, [y,m] = ui.month.split("-").map(Number);
+    for(let k=N-1;k>=0;k--){
+      const d = new Date(y, m-1-k, 1), ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+      labels.push(d.toLocaleDateString(undefined,{month:"short"}));
+      tips.push(d.toLocaleDateString(undefined,{month:"long",year:"numeric"}));
+      inn.push(state.incomes.filter(x=>x.date.startsWith(ym)).reduce((s,x)=>s+x.amount,0));
+      out.push(state.expenses.filter(x=>x.date.startsWith(ym)).reduce((s,x)=>s+x.amount,0));
+    }
+  }
+  return {labels, tips, inn, out};
+}
+function plText(i, o){
+  const net = i - o;
+  return `<span class="in">In ${money(i)}</span> · <span class="out">Out ${money(o)}</span> · ${net>=0 ? "Profit" : "Loss"} ${money(Math.abs(net))}`;
+}
+function renderLine(){
+  const wrap = $("lineWrap"), d = lineData(), n = d.labels.length;
+  const vals = d.inn.concat(d.out).filter(v=>v!==null);
+  const sumIn = ui.gMode==="month" ? (d.inn.filter(v=>v!==null).at(-1)||0) : d.inn.reduce((a,b)=>a+b,0);
+  const sumOut = ui.gMode==="month" ? (d.out.filter(v=>v!==null).at(-1)||0) : d.out.reduce((a,b)=>a+b,0);
+  $("gNote").textContent = ui.gMode==="month" ? "Running total through the month" : "Total per month";
+  const summary = (ui.gMode==="month" ? "This month: " : `Last ${n} months: `) + plText(sumIn, sumOut);
+  $("lineTip").innerHTML = summary;
+  if(!vals.some(v=>v>0)){ wrap.innerHTML = `<div class="empty-chart">Nothing to show yet. Add an income or expense and the lines will appear.</div>`; return; }
+
+  const W = Math.max(300, wrap.clientWidth || 700), H = W < 520 ? 220 : 270;
+  const L = 50, R = 14, T = 14, B = 28, max = niceMax(Math.max(...vals));
+  const X = i => L + (W-L-R) * (n===1 ? .5 : i/(n-1));
+  const Y = v => T + (H-T-B) * (1 - v/max);
+  const pts = arr => arr.map((v,i)=>v===null?null:[X(i),Y(v)]).filter(Boolean);
+  const path = p => p.map((q,i)=>(i?"L":"M")+q[0].toFixed(1)+","+q[1].toFixed(1)).join("");
+  const area = p => p.length ? path(p) + `L${p.at(-1)[0].toFixed(1)},${H-B}L${p[0][0].toFixed(1)},${H-B}Z` : "";
+  const pi = pts(d.inn), po = pts(d.out);
+
+  let grid = "";
+  for(let g=0; g<=4; g++){
+    const v = max*g/4, y = Y(v);
+    grid += `<line class="grid" x1="${L}" x2="${W-R}" y1="${y}" y2="${y}"/><text class="ax" x="${L-8}" y="${y+4}" text-anchor="end">${shortMoney(v)}</text>`;
+  }
+  const every = ui.gMode==="month" ? (W < 520 ? 7 : 5) : (n > 6 && W < 520 ? 2 : 1);
+  let xl = "";
+  d.labels.forEach((l,i)=>{ if(i % every === 0 || i === n-1) xl += `<text class="ax" x="${X(i)}" y="${H-8}" text-anchor="middle">${esc(l)}</text>`; });
+  let hits = "";
+  for(let i=0;i<n;i++){
+    const x0 = i===0 ? L : (X(i-1)+X(i))/2, x1 = i===n-1 ? W-R : (X(i)+X(i+1))/2;
+    hits += `<rect x="${x0}" y="${T}" width="${Math.max(1,x1-x0)}" height="${H-T-B}" fill="transparent" data-i="${i}"/>`;
+  }
+  const dots = (p, c) => n <= 12 ? p.map(q=>`<circle cx="${q[0]}" cy="${q[1]}" r="3.5" fill="#fff" stroke="${c}" stroke-width="2"/>`).join("") : "";
+
+  wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="pop" role="img" aria-label="Line graph of income and expenses">
+    <defs>
+      <linearGradient id="gIn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2F7D5B" stop-opacity=".18"/><stop offset="1" stop-color="#2F7D5B" stop-opacity="0"/></linearGradient>
+      <linearGradient id="gOut" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF7A1A" stop-opacity=".16"/><stop offset="1" stop-color="#FF7A1A" stop-opacity="0"/></linearGradient>
+    </defs>
+    ${grid}${xl}
+    <path d="${area(pi)}" fill="url(#gIn)"/><path d="${area(po)}" fill="url(#gOut)"/>
+    <path d="${path(pi)}" fill="none" stroke="#2F7D5B" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="${path(po)}" fill="none" stroke="#FF7A1A" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+    ${dots(pi,"#2F7D5B")}${dots(po,"#FF7A1A")}
+    <g id="gCursor" style="display:none;pointer-events:none">
+      <line id="gcLine" y1="${T}" y2="${H-B}" stroke="#1E1E1E" stroke-width="1" stroke-dasharray="3 3"/>
+      <circle id="gcIn" r="5.5" fill="#2F7D5B" stroke="#fff" stroke-width="2"/>
+      <circle id="gcOut" r="5.5" fill="#FF7A1A" stroke="#fff" stroke-width="2"/>
+    </g>
+    <g id="gHits">${hits}</g>
+  </svg>`;
+
+  const show = i=>{
+    const vi = d.inn[i], vo = d.out[i];
+    if(vi===null && vo===null){ hide(); return; }
+    $("gCursor").style.display = "";
+    $("gcLine").setAttribute("x1", X(i)); $("gcLine").setAttribute("x2", X(i));
+    $("gcIn").setAttribute("cx", X(i));  $("gcIn").setAttribute("cy", Y(vi||0));
+    $("gcOut").setAttribute("cx", X(i)); $("gcOut").setAttribute("cy", Y(vo||0));
+    $("lineTip").innerHTML = `${esc(d.tips[i])}: ` + plText(vi||0, vo||0);
+  };
+  const hide = ()=>{ $("gCursor").style.display = "none"; $("lineTip").innerHTML = summary; };
+  const hitsEl = $("gHits");
+  hitsEl.addEventListener("mouseover", e=>{ const r=e.target.closest("[data-i]"); if(r) show(+r.dataset.i); });
+  hitsEl.addEventListener("click", e=>{ const r=e.target.closest("[data-i]"); if(r) show(+r.dataset.i); });
+  hitsEl.addEventListener("mouseleave", hide);
+  hitsEl.addEventListener("touchmove", e=>{
+    const t = e.touches[0], el = document.elementFromPoint(t.clientX, t.clientY);
+    if(el && el.dataset && el.dataset.i !== undefined) show(+el.dataset.i);
+  }, {passive:true});
+}
+let lineResize;
+window.addEventListener("resize", ()=>{ clearTimeout(lineResize); lineResize = setTimeout(renderLine, 150); });
+
 /* ---------- list ---------- */
 $("q").addEventListener("input", e=>{ ui.f.q = e.target.value.toLowerCase(); renderList(); });
 function renderFilters(){
@@ -810,8 +956,8 @@ function renderList(){
     return `<div class="day-group"><div class="day-head"><span>${label}</span><span class="num">${head}</span></div>` +
       arr.map(x=>{ const c=catOf(x.cat), inc = x.kind==="income", light = ['other','bills','interest','other_in','rent_in'].includes(c.id);
         return `<div class="item" data-id="${x.id}" tabindex="0" role="button" aria-label="Edit ${inc?"income":"expense"} ${esc(c.name)} ${money(x.amount)}">
-        <span class="av" style="background:${c.color};${light?'color:#1E1E1E':''}">${inc ? "↓" : c.name[0]}</span>
-        <span class="info">${inc ? `${esc(c.name)} from ${esc(x.source||"someone")}` : esc(c.name)}<small>${esc(x.by||"Someone")} · ${esc(x.pay)}${x.note?" · "+esc(x.note):""}</small></span>
+        <span class="av" style="background:${inc?'#2F7D5B':c.color};${light&&!inc?'color:#1E1E1E':''}">${inc ? "↓" : c.name[0]}</span>
+        <span class="info">${inc ? `Income from ${esc(x.source||"someone")}` : esc(c.name)}<small>${esc(x.by||"Someone")} · ${esc(x.pay)}${x.note?" · "+esc(x.note):""}</small></span>
         <span class="amt num${inc?" inc":""}">${inc?"+":""}${money(x.amount)}</span></div>`; }).join("") + `</div>`;
   }).join("");
 }
@@ -828,6 +974,7 @@ function openEdit(id){
   $("eTitle").textContent = inc ? "Edit income" : "Edit expense";
   $("eCat").innerHTML = (inc ? INCOME_CATS : CATEGORIES).map(c=>`<option value="${c.id}">${c.name}</option>`).join("");
   $("eSrcField").hidden = !inc; $("eSource").value = editing.source || "";
+  $("eCat").closest(".field").hidden = inc;
   $("eCur").textContent = state.currency;
   $("eBy").textContent = `Added by ${editing.by||"someone"}`;
   $("eAmount").value = editing.amount; $("eCat").value = editing.cat; $("ePay").value = editing.pay;
@@ -937,7 +1084,7 @@ if(/iphone|ipad/i.test(navigator.userAgent) && !standalone && !loadJSON("ds-ios-
 
 /* ---------- boot ---------- */
 function updateSources(){ $("srcList").innerHTML = [...new Set(state.incomes.map(x=>x.source).filter(Boolean))].sort().map(n=>`<option value="${esc(n)}">`).join(""); }
-function render(){ updateSources(); if(!$("gate").hidden && !$("nameChips").hidden) renderNameChips(); $("curSym").textContent = state.currency; renderToday(); renderMonth(); renderPie(); renderFilters(); renderList(); }
+function render(){ updateSources(); if(!$("gate").hidden && !$("nameChips").hidden) renderNameChips(); $("curSym").textContent = state.currency; renderToday(); renderMonth(); renderPie(); renderLine(); renderFilters(); renderList(); }
 buildForm();
 $("date").value = isoToday();
 render(); updateSync();
