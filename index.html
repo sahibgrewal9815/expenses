@@ -191,6 +191,7 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
     <span class="muted">Daily Spend</span>
     <h2 style="margin-top:18px">Family expenses</h2>
     <p class="help" id="gateText" style="margin:12px 0 18px">What's your name? The family will see it next to the expenses you add.</p>
+    <div class="quick" id="nameChips" style="margin:0 0 14px"></div>
     <div class="field" id="nameField" style="margin-bottom:18px"><span class="ico">☺</span><input id="gateName" type="text" autocomplete="given-name" maxlength="24" placeholder="your name" aria-label="Your name"></div>
     <button class="go" id="nameBtn"><span class="label">Start</span><span class="arrow">›</span></button>
     <div class="msg" id="gateMsg" role="status"></div>
@@ -421,10 +422,19 @@ function gate(mode){
   $("gateText").textContent = mode === "setup"
     ? "Supabase isn't connected yet. Paste your Project URL and key into index.html (search for PASTE YOUR SUPABASE DETAILS), then reload."
     : "What's your name? The family will see it next to the expenses you add.";
-  if(mode === "name"){ $("gateName").value = (me && me.name) || ""; setTimeout(()=>$("gateName").focus(), 50); }
+  $("nameChips").hidden = mode !== "name";
+  if(mode === "name"){ $("gateName").value = (me && me.name) || ""; renderNameChips(); }
 }
 
 const firstName = u => (u && u.name) || "Someone";
+// One-tap buttons for names the family has already used
+function renderNameChips(){
+  const names = [...new Set(state.expenses.map(x=>x.by).filter(n=>n && n!=="Someone"))].sort();
+  $("nameChips").innerHTML = names.length
+    ? `<span class="help" style="width:100%;margin:0 0 4px">Tap your name:</span>` + names.map(n=>`<button class="tiny-pill" type="button" data-n="${esc(n)}">${esc(n)}</button>`).join("")
+    : "";
+}
+$("nameChips").onclick = e=>{ const b=e.target.closest("[data-n]"); if(!b) return; $("gateName").value = b.dataset.n; setName(); };
 function showUser(){
   $("signOutBtn").hidden = false; $("signOutBtn").textContent = `${me.name} · Change name`;
   $("hello").textContent = `Hi ${me.name}`;
@@ -432,10 +442,9 @@ function showUser(){
 function setName(){
   const n = $("gateName").value.trim();
   if(!n){ $("gateMsg").textContent = "Type your name to continue."; return; }
-  const first = !me;
   me = {name:n, email:""}; saveJSON("ds-name", n);
-  $("gate").hidden = true; showUser();
-  if(first) boot();
+  try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch(e){}   // ask the browser to keep it
+  $("gate").hidden = true; showUser(); flush();
 }
 $("nameBtn").onclick = setName;
 $("gateName").addEventListener("keydown", e=>{ if(e.key==="Enter") setName(); });
@@ -451,8 +460,9 @@ if(!configured){ gate("setup"); }
 else {
   sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {auth:{persistSession:false}});
   const saved = loadJSON("ds-name", "");
-  if(saved){ me = {name:saved, email:""}; showUser(); boot(); }
-  else gate("name");
+  if(saved){ me = {name:saved, email:""}; showUser(); }
+  boot();                                   // load the family's data straight away
+  if(!saved) gate("name");
 }
 
 function startLive(){
@@ -489,7 +499,7 @@ function applySettings(s, quiet){
 
 let fetching = false;
 async function refetch(){
-  if(!me || fetching || !navigator.onLine) return;
+  if(!sb || fetching || !navigator.onLine) return;
   fetching = true;
   try{
     let all = [], from = 0;
@@ -531,7 +541,6 @@ function updateSync(){
   const el=$("syncPill"), t=$("syncText");
   el.className = "sync"; el.title = "";
   if(!configured){ t.textContent = "Not set up"; return; }
-  if(!me){ t.textContent = "Waiting for name"; return; }
   if(!navigator.onLine){ el.classList.add("wait"); t.textContent = queue.length ? `Offline, ${queue.length} to upload` : "Offline"; return; }
   if(live.error){ el.classList.add("err"); t.textContent = "Sync problem, tap to retry"; el.title = live.error; return; }
   if(flushing || queue.length){ el.classList.add("wait"); t.textContent = "Saving…"; return; }
@@ -852,7 +861,7 @@ if(/iphone|ipad/i.test(navigator.userAgent) && !standalone && !loadJSON("ds-ios-
 }
 
 /* ---------- boot ---------- */
-function render(){ $("curSym").textContent = state.currency; renderToday(); renderMonth(); renderPie(); renderFilters(); renderList(); }
+function render(){ if(!$("gate").hidden && !$("nameChips").hidden) renderNameChips(); $("curSym").textContent = state.currency; renderToday(); renderMonth(); renderPie(); renderFilters(); renderList(); }
 buildForm();
 $("date").value = isoToday();
 render(); updateSync();
