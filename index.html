@@ -136,6 +136,17 @@ h3{font-weight:400;font-size:1.35rem;margin:0}
 .set-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px 16px}
 .tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
 
+/* sync */
+.top-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end}
+.sync{display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(30,30,30,.25);background:rgba(255,255,255,.45);border-radius:999px;padding:6px 14px;font-size:.82rem;cursor:pointer}
+.sync .led{width:8px;height:8px;border-radius:50%;background:#A79E97}
+.sync.ok .led{background:#2F9E6E}
+.sync.wait .led{background:var(--orange);animation:blink 1s infinite alternate}
+.sync.err .led{background:#C2410C}
+@keyframes blink{to{opacity:.3}}
+a.outline-pill{color:var(--ink);text-decoration:none}
+.help{margin:6px 0 0;font-size:.85rem;color:var(--muted);max-width:70ch}
+
 /* toast + dialog */
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,140%);background:#1E1E1E;color:#fff;border-radius:999px;padding:8px 8px 8px 20px;display:flex;gap:14px;align-items:center;transition:transform .35s cubic-bezier(.2,.8,.2,1);z-index:20;max-width:calc(100% - 32px)}
 .toast.show{transform:translate(-50%,0)}
@@ -166,7 +177,10 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
 <div class="wrap">
   <div class="top">
     <span class="brand">Daily Spend</span>
-    <span class="top-date" id="topDate"></span>
+    <div class="top-right">
+      <button class="sync" id="syncPill" type="button"><span class="led"></span><span id="syncText">Sheet not connected</span></button>
+      <span class="top-date" id="topDate"></span>
+    </div>
   </div>
 
   <div class="grid">
@@ -192,7 +206,7 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
       <div class="field"><span class="ico">✎</span><input id="note" type="text" placeholder="note, e.g. petrol 5 litres" aria-label="Note"></div>
 
       <div class="foot">
-        <p>Saved on this device. Download a backup from Settings now and then.</p>
+        <p>Saved on this device and copied to your Google Sheet when it's connected.</p>
         <button class="go dot-only" id="saveBtn" aria-label="Save expense"><span class="arrow">›</span></button>
       </div>
       <div class="msg" id="msg" role="status"></div>
@@ -279,6 +293,20 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
         <button class="outline-pill" id="demoBtn">Add sample data</button>
         <input type="file" id="importFile" accept=".json" hidden>
       </div>
+
+      <h3 style="margin-top:28px" id="sheetTitle">Google Sheet backup</h3>
+      <p class="help">Every expense you add, edit or delete is copied to your Google Sheet. Paste the web app link and secret key from the setup steps.</p>
+      <div class="set-grid">
+        <div class="field"><span class="ico">⛓</span><input id="sUrl" type="url" placeholder="web app link (script.google.com/…/exec)" aria-label="Google Sheet web app link"></div>
+        <div class="field"><span class="ico">✱</span><input id="sKey" type="password" placeholder="secret key" aria-label="Secret key"></div>
+      </div>
+      <div class="tools">
+        <button class="outline-pill" id="testBtn">Test connection</button>
+        <button class="outline-pill" id="pushAllBtn">Upload all to Sheet</button>
+        <button class="outline-pill" id="pullBtn">Load from Sheet</button>
+        <a class="outline-pill" id="openSheet" target="_blank" rel="noopener" hidden>Open my Sheet</a>
+      </div>
+      <div class="msg" id="syncMsg" role="status"></div>
     </section>
   </div>
 </div>
@@ -320,12 +348,19 @@ const KEY = "daily-spend-v2";
 let memory = null;
 
 /* ---------- storage ---------- */
+function normalize(d){
+  d.expenses = d.expenses || []; d.currency = d.currency || "₹"; d.budget = d.budget || 0;
+  d.expenses.forEach(x=>{ if(x.pay==="Bank transfer") x.pay="Bank"; });
+  d.sync = d.sync || {url:"",key:"",sheetUrl:"",error:""};
+  d.queue = d.queue || [];
+  return d;
+}
 function load(){
   try{
     const raw = localStorage.getItem(KEY) || localStorage.getItem("daily-spend-v1");
-    if(raw){ const d = JSON.parse(raw); d.expenses.forEach(x=>{ if(x.pay==="Bank transfer") x.pay="Bank"; }); return d; }
+    if(raw) return normalize(JSON.parse(raw));
   }catch(e){}
-  return memory || {expenses:[],budget:0,currency:"₹"};
+  return normalize(memory || {});
 }
 function persist(){ memory = state; try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
 
@@ -390,7 +425,7 @@ function save(){
   if(!amount || amount<=0) return flash("Enter an amount above zero.", true);
   if(!ui.cat) return flash("Pick a category.", true);
   const x = {id:uid(), amount, cat:ui.cat, pay:ui.pay, date:$("date").value||isoToday(), note:$("note").value.trim()};
-  state.expenses.push(x); persist();
+  state.expenses.push(x); persist(); queueUpsert(x);
   flash(`Saved ${money(amount)} for ${catOf(x.cat).name}.`);
   $("amount").value=""; $("note").value="";
   ui.month = x.date.slice(0,7);
@@ -575,12 +610,12 @@ $("eCancel").onclick = ()=>$("editDlg").close();
 $("eSave").onclick = ()=>{
   const a = parseFloat($("eAmount").value); if(!a||a<=0) return $("eAmount").focus();
   Object.assign(editing,{amount:a,cat:$("eCat").value,pay:$("ePay").value,date:$("eDate").value||editing.date,note:$("eNote").value.trim()});
-  persist(); $("editDlg").close(); render(); toast("Changes saved.");
+  delete editing.demo; persist(); queueUpsert(editing); $("editDlg").close(); render(); toast("Changes saved.");
 };
 $("eDel").onclick = ()=>{
   const idx = state.expenses.indexOf(editing), removed = editing;
-  state.expenses.splice(idx,1); persist(); $("editDlg").close(); render();
-  toast(`Deleted ${money(removed.amount)}.`, ()=>{ state.expenses.splice(idx,0,removed); persist(); render(); toast("Expense restored."); });
+  state.expenses.splice(idx,1); persist(); queueDelete(removed); $("editDlg").close(); render();
+  toast(`Deleted ${money(removed.amount)}.`, ()=>{ state.expenses.splice(idx,0,removed); persist(); queueUpsert(removed); render(); toast("Expense restored."); });
 };
 
 let toastTimer;
@@ -605,7 +640,7 @@ $("importBtn").onclick = ()=>$("importFile").click();
 $("importFile").onchange = e=>{
   const file=e.target.files[0]; if(!file) return; const r=new FileReader();
   r.onload=()=>{ try{ const d=JSON.parse(r.result); if(!Array.isArray(d.expenses)) throw 0;
-    state={budget:0,currency:"₹",...d}; persist(); init(); toast("Backup restored."); }
+    const keepSync = state.sync; state = normalize(d); if(!state.sync.url) state.sync = keepSync; persist(); init(); toast("Backup restored."); }
     catch{ toast("That file isn't a Daily Spend backup."); } };
   r.readAsText(file); e.target.value="";
 };
@@ -623,13 +658,106 @@ $("demoBtn").onclick = ()=>{
   toast("Added 40 sample expenses.", ()=>{ state.expenses=state.expenses.filter(x=>!x.demo); persist(); render(); toast("Sample data removed."); });
 };
 
+/* ---------- Google Sheet sync ---------- */
+const toRow = x => ({id:x.id, date:x.date, category:catOf(x.cat).name, amount:x.amount, pay:x.pay, note:x.note||""});
+function queueUpsert(x){ if(x.demo) return; state.queue.push({op:"upsert", e:toRow(x)}); persist(); flush(); }
+function queueDelete(x){ if(x.demo) return; state.queue.push({op:"delete", id:x.id}); persist(); flush(); }
+const connected = () => !!(state.sync.url && state.sync.key);
+let flushing = false;
+
+async function sheetFetch(url, opts){
+  let res;
+  try { res = await fetch(url, opts); }
+  catch(e){ throw new Error(navigator.onLine ? "Couldn't reach the Sheet. Check the link is the web app URL ending in /exec and access is set to Anyone." : "You're offline. Changes will sync when you're back online."); }
+  let d; try { d = await res.json(); } catch(e){ throw new Error("The link didn't answer like the expense script. Check you deployed it as a Web app."); }
+  if(!d.ok) throw new Error(d.error || "The Sheet refused the request.");
+  return d;
+}
+
+async function flush(){
+  updateSync();
+  if(!connected() || !state.queue.length || flushing) return;
+  flushing = true; updateSync();
+  const batch = state.queue.slice(0, 200);
+  try{
+    await sheetFetch(state.sync.url, {method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify({key:state.sync.key, ops:batch})});
+    state.queue = state.queue.slice(batch.length);
+    state.sync.error = ""; persist();
+  }catch(err){ state.sync.error = err.message; persist(); }
+  flushing = false; updateSync();
+  if(state.queue.length && !state.sync.error) flush();
+}
+
+function updateSync(){
+  const el = $("syncPill"), t = $("syncText"), n = state.queue.length, s = state.sync;
+  el.className = "sync"; el.title = "";
+  if(!connected()){ t.textContent = "Sheet not connected"; return; }
+  if(flushing){ el.classList.add("wait"); t.textContent = "Syncing…"; return; }
+  if(s.error){ el.classList.add("err"); t.textContent = n ? `${n} not synced, tap to retry` : "Sync problem"; el.title = s.error; return; }
+  if(n){ el.classList.add("wait"); t.textContent = `${n} waiting to sync`; return; }
+  el.classList.add("ok"); t.textContent = "Saved to Google Sheet";
+}
+$("syncPill").onclick = ()=>{
+  if(!connected()){ $("sheetTitle").scrollIntoView({behavior:"smooth",block:"center"}); $("sUrl").focus({preventScroll:true}); return; }
+  if(state.sync.error) smsg(state.sync.error, true);
+  state.sync.error = ""; flush();
+};
+function smsg(t,bad){ $("syncMsg").textContent = t; $("syncMsg").style.color = bad ? "#C2410C" : "var(--ink)"; }
+function showOpen(){ const a=$("openSheet"); if(state.sync.sheetUrl){ a.href=state.sync.sheetUrl; a.hidden=false; } else a.hidden=true; }
+
+async function callSheet(action){
+  if(!connected()) throw new Error("Paste your web app link and secret key first.");
+  const d = await sheetFetch(`${state.sync.url}?action=${action}&key=${encodeURIComponent(state.sync.key)}`);
+  if(d.sheetUrl){ state.sync.sheetUrl = d.sheetUrl; persist(); showOpen(); }
+  return d;
+}
+$("sUrl").onchange = e=>{ state.sync.url = e.target.value.trim(); state.sync.error=""; persist(); updateSync(); };
+$("sKey").onchange = e=>{ state.sync.key = e.target.value.trim(); state.sync.error=""; persist(); updateSync(); };
+
+$("testBtn").onclick = async()=>{
+  state.sync.url = $("sUrl").value.trim(); state.sync.key = $("sKey").value.trim(); persist();
+  smsg("Checking…");
+  try{ const d = await callSheet("ping"); state.sync.error=""; persist();
+    smsg(`Connected. Your Sheet has ${d.rows} expense${d.rows===1?"":"s"}.${state.expenses.some(x=>!x.demo)&&!d.rows?" Tap Upload all to Sheet to copy what's already in the app.":""}`);
+    flush(); }
+  catch(err){ smsg(err.message, true); }
+  updateSync();
+};
+$("pushAllBtn").onclick = ()=>{
+  if(!connected()) return smsg("Paste your web app link and secret key first.", true);
+  const real = state.expenses.filter(x=>!x.demo);
+  if(!real.length) return smsg("No expenses to upload yet.", true);
+  real.forEach(x=>state.queue.push({op:"upsert", e:toRow(x)})); persist();
+  smsg(`Uploading ${real.length} expense${real.length>1?"s":""}. Watch the status at the top.`);
+  state.sync.error = ""; flush();
+};
+$("pullBtn").onclick = async()=>{
+  smsg("Loading from your Sheet…");
+  try{
+    const d = await callSheet("list");
+    const pendingUp = new Set(state.queue.filter(o=>o.op==="upsert").map(o=>o.e.id));
+    const pendingDel = new Set(state.queue.filter(o=>o.op==="delete").map(o=>o.id));
+    const fromSheet = d.expenses.filter(x=>!pendingUp.has(x.id) && !pendingDel.has(x.id)).map(x=>({
+      id:x.id, date:x.date, amount:Number(x.amount)||0,
+      cat:(CATEGORIES.find(c=>c.name===x.category)||CATEGORIES.at(-1)).id,
+      pay: PAYS.some(p=>p.id===x.pay) ? x.pay : "Cash", note:x.note||""}));
+    const keep = state.expenses.filter(x=>pendingUp.has(x.id) || x.demo);
+    state.expenses = [...fromSheet, ...keep]; persist(); render();
+    smsg(`Loaded ${fromSheet.length} expense${fromSheet.length===1?"":"s"} from your Sheet.`);
+  }catch(err){ smsg(err.message, true); }
+};
+window.addEventListener("online", ()=>{ state.sync.error=""; flush(); });
+setInterval(()=>{ if(state.queue.length && !flushing){ state.sync.error=""; flush(); } }, 60000);
+
 /* ---------- boot ---------- */
 function render(){ $("curSym").textContent = state.currency; renderToday(); renderMonth(); renderPie(); renderFilters(); renderList(); }
 function init(){
   buildForm();
   $("budget").value = state.budget||""; $("currency").value = state.currency;
   $("curSym").textContent = state.currency;
-  render();
+  $("sUrl").value = state.sync.url || ""; $("sKey").value = state.sync.key || "";
+  showOpen(); render(); flush();
 }
 init();
 </script>
