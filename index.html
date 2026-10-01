@@ -179,6 +179,18 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
   .month .total{font-size:2.4rem}
 }
 
+/* income */
+.pl-label{margin-top:16px;color:#9C948E;font-size:.95rem}
+.month .total.profit{color:#8FD6AE}
+.month .total.loss{color:#FF9A5A}
+.inout{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.inout div{background:#2A2A2A;border-radius:16px;padding:10px 14px}
+.inout span{display:block;color:#9C948E;font-size:.8rem}
+.inout strong{font-weight:400;font-size:1.2rem}
+.item .amt.inc{color:#2F7D5B}
+.list-seg{max-width:340px;margin-top:14px;background:var(--panel)}
+.list-seg button[aria-pressed="true"]{background:#fff}
+
 /* sign-in gate */
 .gate{position:fixed;inset:0;z-index:30;display:grid;place-items:center;padding:20px;background:rgba(233,222,210,.55);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
 .gate-card{width:100%;max-width:440px}
@@ -214,9 +226,13 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
     <section class="card glass" aria-labelledby="addTitle">
       <div class="row">
         <span class="muted" id="hello">New entry</span>
-        <button class="outline-pill" id="repeatBtn" title="Fill the form with your last expense">Repeat last</button>
+        <button class="outline-pill" id="repeatBtn" title="Fill the form with your last entry">Repeat last</button>
       </div>
-      <h2 id="addTitle" style="margin-top:22px">Add expense</h2>
+      <div class="seg" id="kindSeg" role="group" aria-label="Type" style="margin-top:18px">
+        <button type="button" data-k="expense" aria-pressed="true">Expense</button>
+        <button type="button" data-k="income" aria-pressed="false">Income</button>
+      </div>
+      <h2 id="addTitle" style="margin-top:20px">Add expense</h2>
 
       <div class="field big"><span class="ico" id="curSym">₹</span>
         <input id="amount" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" aria-label="Amount">
@@ -225,6 +241,8 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
       <div class="quick" id="quick" aria-label="Add to amount"></div>
 
       <div class="cats" id="cats" role="group" aria-label="Category"></div>
+      <div class="field" id="srcField" hidden><span class="ico">↙</span><input id="source" type="text" list="srcList" maxlength="40" placeholder="from whom, e.g. Dad, ABC Company" aria-label="Income from whom"></div>
+      <datalist id="srcList"></datalist>
 
       <div class="seg" id="paySeg" role="group" aria-label="Paid with"></div>
 
@@ -275,7 +293,12 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
           <button class="navbtn" id="nextM" aria-label="Next month">›</button>
         </div>
       </div>
-      <div class="total num" id="mTotal">₹0</div>
+      <div class="pl-label" id="plLabel">Profit this month</div>
+      <div class="total num" id="mTotal" style="margin-top:2px">₹0</div>
+      <div class="inout">
+        <div><span>Income</span><strong class="num" id="mIn">₹0</strong></div>
+        <div><span>Expenses</span><strong class="num" id="mOut">₹0</strong></div>
+      </div>
       <div class="bar" id="bBar"><div style="width:0"></div></div>
       <div class="sub" style="font-size:.88rem" id="bText"></div>
       <div class="days" id="days" aria-label="Spending per day, tap a day to filter"></div>
@@ -291,6 +314,7 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
           <button class="outline-pill" data-mode="cat" aria-pressed="true">Category</button>
           <button class="outline-pill" data-mode="by" aria-pressed="false">Person</button>
           <button class="outline-pill" data-mode="pay" aria-pressed="false">Payment</button>
+          <button class="outline-pill" data-mode="source" aria-pressed="false">Income</button>
         </div>
       </div>
       <div class="pie-wrap" id="pieWrap"></div>
@@ -299,8 +323,13 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
     <!-- List -->
     <section class="card white span2" aria-labelledby="lTitle">
       <div class="row">
-        <h2 id="lTitle">Expenses</h2>
-        <div class="field search"><span class="ico">⌕</span><input id="q" type="search" placeholder="search notes" aria-label="Search notes"></div>
+        <h2 id="lTitle">Entries</h2>
+        <div class="field search"><span class="ico">⌕</span><input id="q" type="search" placeholder="search notes or names" aria-label="Search"></div>
+      </div>
+      <div class="seg list-seg" id="typeSeg" role="group" aria-label="Show">
+        <button type="button" data-t="all" aria-pressed="true">All</button>
+        <button type="button" data-t="expense" aria-pressed="false">Expenses</button>
+        <button type="button" data-t="income" aria-pressed="false">Income</button>
       </div>
       <div class="filters" id="filters"></div>
       <div id="list"></div>
@@ -336,6 +365,7 @@ dialog::backdrop{background:rgba(40,25,10,.35);backdrop-filter:blur(4px)}
   <p class="help" id="eBy" style="margin-top:4px"></p>
   <div class="field"><span class="ico" id="eCur">₹</span><input id="eAmount" type="number" min="0" step="0.01" aria-label="Amount"></div>
   <div class="field"><span class="ico">●</span><select id="eCat" aria-label="Category"></select></div>
+  <div class="field" id="eSrcField"><span class="ico">↙</span><input id="eSource" type="text" list="srcList" placeholder="from whom" aria-label="Income from whom"></div>
   <div class="field"><span class="ico">⇄</span><select id="ePay" aria-label="Paid with"></select></div>
   <div class="field"><span class="ico">◷</span><input id="eDate" type="date" aria-label="Date"></div>
   <div class="field"><span class="ico">✎</span><input id="eNote" type="text" placeholder="note" aria-label="Note"></div>
@@ -370,12 +400,23 @@ const CATEGORIES = [
   {id:"shopping",  name:"Shopping",   color:"#5E5048"},
   {id:"other",     name:"Other",      color:"#CDBFB2"}
 ];
+const INCOME_CATS = [
+  {id:"salary",   name:"Salary",   color:"#2F7D5B"},
+  {id:"business", name:"Business", color:"#4F9D78"},
+  {id:"rent_in",  name:"Rent",     color:"#7DB89A"},
+  {id:"interest", name:"Interest", color:"#A6CDB7"},
+  {id:"gift",     name:"Gift",     color:"#8A9A5B"},
+  {id:"refund",   name:"Refund",   color:"#5E7D6A"},
+  {id:"other_in", name:"Other",    color:"#C3D6C8"}
+];
+const INCOME_COLORS = ["#2F7D5B","#4F9D78","#7DB89A","#A6CDB7","#8A9A5B","#5E7D6A"];
 const PAYS = [{id:"UPI",color:"#FF7A1A"},{id:"Cash",color:"#1E1E1E"},{id:"Card",color:"#B08968"},{id:"Bank",color:"#CDBFB2"}];
 const PEOPLE_COLORS = ["#FF7A1A","#1E1E1E","#B08968","#FFB074","#7F5539","#9C948E"];
 
-const state = {expenses:[], budget:0, currency:"₹"};
-const ui = { cat:null, pay:"UPI", month: isoToday().slice(0,7), pieMode:"cat",
-             f:{cat:null,pay:null,by:null,day:null,q:""} };
+const state = {expenses:[], incomes:[], budget:0, currency:"₹"};
+const ui = { kind:"expense", listType:"all", cat:null, pay:"UPI", month: isoToday().slice(0,7), pieMode:"cat",
+             f:{cat:null,pay:null,by:null,source:null,day:null,q:""} };
+const EMPTY_F = () => ({cat:null,pay:null,by:null,source:null,day:null,q:ui.f.q});
 const live = {ready:false, error:"", rt:"off"};
 let me = null, sb = null, channel = null;
 
@@ -384,7 +425,7 @@ let me = null, sb = null, channel = null;
 const $ = id => document.getElementById(id);
 function isoToday(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
 const money = n => state.currency + Number(n).toLocaleString(undefined,{maximumFractionDigits:2});
-const catOf = id => CATEGORIES.find(c=>c.id===id) || CATEGORIES.at(-1);
+const catOf = id => CATEGORIES.find(c=>c.id===id) || INCOME_CATS.find(c=>c.id===id) || CATEGORIES.at(-1);
 const payOf = id => PAYS.find(p=>p.id===id) || PAYS.at(-1);
 const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function ordinal(n){ const s=["th","st","nd","rd"], v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]); }
@@ -410,11 +451,14 @@ function loadJSON(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.pars
 function saveJSON(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)+Math.random().toString(36).slice(2,10));
 let queue = loadJSON("ds-queue", []);
-function cache(){ saveJSON("ds-cache",{expenses:state.expenses, budget:state.budget, currency:state.currency}); }
+function cache(){ saveJSON("ds-cache",{expenses:state.expenses, incomes:state.incomes, budget:state.budget, currency:state.currency}); }
+const allItems = () => state.expenses.concat(state.incomes);
+function setAll(list){ state.expenses = list.filter(x=>x.kind!=="income"); state.incomes = list.filter(x=>x.kind==="income"); }
 
 const fromRow = r => ({id:String(r.id), amount:Number(r.amount)||0, cat:r.cat||"other", pay:r.pay||"Cash", date:String(r.date).slice(0,10),
-                       note:r.note||"", by:r.by_name||"Someone", byEmail:r.by_email||"", t:Number(r.t)||0});
-const toRow = x => ({id:x.id, amount:x.amount, cat:x.cat, pay:x.pay, date:x.date, note:x.note||"", by_name:x.by, by_email:x.byEmail, t:x.t||Date.now()});
+                       note:r.note||"", by:r.by_name||"Someone", byEmail:r.by_email||"", t:Number(r.t)||0,
+                       kind:r.kind==="income"?"income":"expense", source:r.source||""});
+const toRow = x => ({id:x.id, amount:x.amount, cat:x.cat, pay:x.pay, date:x.date, note:x.note||"", by_name:x.by, by_email:x.byEmail, t:x.t||Date.now(), kind:x.kind||"expense", source:x.source||""});
 
 function gate(mode){
   $("gate").hidden = false; $("gateMsg").textContent = "";
@@ -429,7 +473,7 @@ function gate(mode){
 const firstName = u => (u && u.name) || "Someone";
 // One-tap buttons for names the family has already used
 function renderNameChips(){
-  const names = [...new Set(state.expenses.map(x=>x.by).filter(n=>n && n!=="Someone"))].sort();
+  const names = [...new Set(allItems().map(x=>x.by).filter(n=>n && n!=="Someone"))].sort();
   $("nameChips").innerHTML = names.length
     ? `<span class="help" style="width:100%;margin:0 0 4px">Tap your name:</span>` + names.map(n=>`<button class="tiny-pill" type="button" data-n="${esc(n)}">${esc(n)}</button>`).join("")
     : "";
@@ -452,7 +496,7 @@ $("signOutBtn").onclick = ()=>gate("name");
 
 function boot(){
   const c = loadJSON("ds-cache", null);                    // show last known data instantly
-  if(c){ state.expenses=c.expenses||[]; state.budget=c.budget||0; state.currency=c.currency||"₹"; live.ready=true; render(); }
+  if(c){ state.expenses=c.expenses||[]; state.incomes=c.incomes||[]; state.budget=c.budget||0; state.currency=c.currency||"₹"; live.ready=true; render(); }
   startLive(); flush(); checkMigration();
 }
 
@@ -470,11 +514,11 @@ function startLive(){
   refetch();
   channel = sb.channel("family-live")
     .on("postgres_changes", {event:"*", schema:"public", table:"expenses"}, p=>{
-      if(p.eventType === "DELETE"){ state.expenses = state.expenses.filter(x=>x.id !== String(p.old.id)); }
+      if(p.eventType === "DELETE"){ setAll(allItems().filter(x=>x.id !== String(p.old.id))); }
       else {
         if(queue.some(o=>o.type==="delete" && o.id===String(p.new.id))) return;
-        const x = fromRow(p.new), i = state.expenses.findIndex(e=>e.id===x.id);
-        i >= 0 ? state.expenses[i] = x : state.expenses.push(x);
+        const x = fromRow(p.new);
+        setAll(allItems().filter(e=>e.id!==x.id).concat([x]));
       }
       cache(); render();
     })
@@ -509,7 +553,7 @@ async function refetch(){
       all = all.concat(data); if(data.length < 1000) break; from += 1000;
     }
     const {data:s} = await sb.from("settings").select("*").eq("id",1).maybeSingle();
-    state.expenses = applyQueue(all.map(fromRow));
+    setAll(applyQueue(all.map(fromRow)));
     if(s) applySettings(s, true);
     live.ready = true; live.error = ""; cache(); render();
   }catch(e){ live.error = e.message || "Couldn't load the family list."; }
@@ -557,12 +601,21 @@ setInterval(()=>{ if(queue.length) flush(); }, 30000);
 
 /* ---------- add form ---------- */
 function buildForm(){
-  $("cats").innerHTML = CATEGORIES.map(c=>`<button class="cat" type="button" data-id="${c.id}" aria-pressed="${c.id===ui.cat}"><span class="dot" style="background:${c.color}"></span>${c.name}</button>`).join("");
+  const inc = ui.kind === "income";
+  $("kindSeg").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.k===ui.kind));
+  $("addTitle").textContent = inc ? "Add income" : "Add expense";
+  $("saveBtn").setAttribute("aria-label", inc ? "Save income" : "Save expense");
+  $("srcField").hidden = !inc;
+  $("paySeg").setAttribute("aria-label", inc ? "Received in" : "Paid with");
+  $("note").placeholder = inc ? "note, e.g. October salary" : "note, e.g. petrol 5 litres";
+  $("srcList").innerHTML = [...new Set(state.incomes.map(x=>x.source).filter(Boolean))].sort().map(n=>`<option value="${esc(n)}">`).join("");
+  $("cats").innerHTML = (inc ? INCOME_CATS : CATEGORIES).map(c=>`<button class="cat" type="button" data-id="${c.id}" aria-pressed="${c.id===ui.cat}"><span class="dot" style="background:${c.color}"></span>${c.name}</button>`).join("");
   $("paySeg").innerHTML = PAYS.map(p=>`<button type="button" data-id="${p.id}" aria-pressed="${p.id===ui.pay}">${p.id}</button>`).join("");
   $("quick").innerHTML = [50,100,200,500,1000].map(v=>`<button class="tiny-pill" type="button" data-v="${v}">+${v}</button>`).join("");
-  $("eCat").innerHTML = CATEGORIES.map(c=>`<option value="${c.id}">${c.name}</option>`).join("");
   $("ePay").innerHTML = PAYS.map(p=>`<option>${p.id}</option>`).join("");
 }
+$("kindSeg").onclick = e=>{ const b=e.target.closest("button"); if(!b || b.dataset.k===ui.kind) return;
+  ui.kind = b.dataset.k; ui.cat = null; buildForm(); flash(""); };
 $("cats").onclick = e=>{ const b=e.target.closest(".cat"); if(!b) return; ui.cat=b.dataset.id;
   document.querySelectorAll(".cat").forEach(x=>x.setAttribute("aria-pressed", x.dataset.id===ui.cat)); };
 $("paySeg").onclick = e=>{ const b=e.target.closest("button"); if(!b) return; ui.pay=b.dataset.id;
@@ -575,12 +628,13 @@ $("note").addEventListener("keydown", e=>{ if(e.key==="Enter") save(); });
 $("saveBtn").onclick = save;
 
 $("repeatBtn").onclick = ()=>{
-  const mine = state.expenses.filter(x=>me && x.by===me.name).sort((a,b)=>(b.t||0)-(a.t||0));
+  const mine = (ui.kind==="income" ? state.incomes : state.expenses).filter(x=>me && x.by===me.name).sort((a,b)=>(b.t||0)-(a.t||0));
   const last = mine[0];
   if(!last) return flash("You haven't added anything yet.", true);
   $("amount").value = last.amount; $("note").value = last.note || "";
   ui.cat = last.cat; ui.pay = last.pay; buildForm(); $("date").value = isoToday();
-  flash("Filled in from your last expense. Check it, then save.");
+  if(last.kind==="income") $("source").value = last.source || "";
+  flash(`Filled in from your last ${ui.kind}. Check it, then save.`);
 };
 function flash(t,bad){ $("msg").textContent=t; $("msg").style.color = bad ? "#C2410C" : "var(--ink)"; }
 
@@ -589,12 +643,14 @@ function save(){
   const amount = parseFloat($("amount").value);
   if(!amount || amount<=0) return flash("Enter an amount above zero.", true);
   if(!ui.cat) return flash("Pick a category.", true);
+  const inc = ui.kind === "income", source = $("source").value.trim();
+  if(inc && !source){ $("source").focus(); return flash("Add who this income is from.", true); }
   const x = {id:uid(), amount, cat:ui.cat, pay:ui.pay, date:$("date").value||isoToday(), note:$("note").value.trim(),
-             by:firstName(me), byEmail:me.email, t:Date.now()};
-  state.expenses.push(x); cache(); render();
+             by:firstName(me), byEmail:me.email, t:Date.now(), kind:ui.kind, source: inc ? source : ""};
+  (inc ? state.incomes : state.expenses).push(x); cache(); render();
   enqueue({type:"upsert", row:toRow(x)});
-  flash(`Saved ${money(amount)} for ${catOf(x.cat).name}.`);
-  $("amount").value=""; $("note").value="";
+  flash(inc ? `Saved ${money(amount)} income from ${source}.` : `Saved ${money(amount)} for ${catOf(x.cat).name}.`);
+  $("amount").value=""; $("note").value=""; $("source").value=""; buildForm();
   ui.month = x.date.slice(0,7);
   $("amount").focus();
 }
@@ -628,6 +684,7 @@ $("todayBtn").onclick = ()=>{
 };
 
 /* ---------- month card ---------- */
+function monthIncomes(){ return state.incomes.filter(x=>x.date && x.date.startsWith(ui.month)); }
 function monthItems(){ return state.expenses.filter(x=>x.date && x.date.startsWith(ui.month)); }
 function shiftMonth(d){
   const [y,m] = ui.month.split("-").map(Number), nd = new Date(y,m-1+d,1);
@@ -639,7 +696,10 @@ function renderMonth(){
   const [y,m] = ui.month.split("-").map(Number);
   $("mName").textContent = new Date(y,m-1,1).toLocaleDateString(undefined,{month:"long",year:"numeric"});
   const items = monthItems(), total = items.reduce((s,x)=>s+x.amount,0);
-  countUp($("mTotal"), total);
+  const income = monthIncomes().reduce((s,x)=>s+x.amount,0), net = income - total;
+  countUp($("mIn"), income); countUp($("mOut"), total); countUp($("mTotal"), Math.abs(net));
+  $("plLabel").textContent = net > 0 ? "Profit this month" : net < 0 ? "Loss this month" : "Break-even this month";
+  $("mTotal").classList.toggle("profit", net > 0); $("mTotal").classList.toggle("loss", net < 0);
   const bar = $("bBar");
   if(state.budget>0){
     bar.style.display="block"; bar.firstElementChild.style.width = Math.min(100,total/state.budget*100)+"%";
@@ -675,12 +735,15 @@ function arc(a0,a1,R,r){
 function metaFor(key,id){
   if(key==="cat") return catOf(id);
   if(key==="pay") return {name:id, color:payOf(id).color};
+  if(key==="source"){ const srcs=[...new Set(state.incomes.map(x=>x.source))].sort(); return {name:id, color:INCOME_COLORS[Math.max(0,srcs.indexOf(id))%INCOME_COLORS.length]}; }
   return {name:id, color:personColor(id)};
 }
 function renderPie(){
-  const items = monthItems(), total = items.reduce((s,x)=>s+x.amount,0), wrap = $("pieWrap");
-  if(!total){ wrap.innerHTML = `<div class="empty-chart">No spending this month yet. The chart appears after the first expense.</div>`; return; }
-  const key = ui.pieMode, groups = {};
+  const key = ui.pieMode, isInc = key === "source";
+  $("pTitle").textContent = isInc ? "Where it came from" : "Where it went";
+  const items = isInc ? monthIncomes() : monthItems(), total = items.reduce((s,x)=>s+x.amount,0), wrap = $("pieWrap");
+  if(!total){ wrap.innerHTML = `<div class="empty-chart">${isInc ? "No income added this month yet." : "No spending this month yet. The chart appears after the first expense."}</div>`; return; }
+  const groups = {};
   items.forEach(x=>{ const k = x[key] || "Someone"; groups[k]=(groups[k]||0)+x.amount; });
   const rows = Object.entries(groups).sort((a,b)=>b[1]-a[1]).map(([id,v])=>({id, v, ...metaFor(key,id)}));
   const active = ui.f[key];
@@ -695,11 +758,11 @@ function renderPie(){
   wrap.innerHTML = `
     <div class="pie"><svg viewBox="0 0 200 200" class="pop">${paths}
       <text x="100" y="98" text-anchor="middle" class="center-big" id="pcBig">${money(sel?sel.v:total)}</text>
-      <text x="100" y="116" text-anchor="middle" class="center-small" id="pcSmall">${sel?esc(sel.name):"total this month"}</text></svg></div>
+      <text x="100" y="116" text-anchor="middle" class="center-small" id="pcSmall">${sel?esc(sel.name):(isInc?"income this month":"total this month")}</text></svg></div>
     <div class="legend">${rows.map(r=>`<button data-id="${esc(r.id)}" aria-pressed="${active===r.id}">
       <span class="dot" style="background:${r.color}"></span><span>${esc(r.name)}</span>
       <span class="num">${money(r.v)}</span><span class="pct num">${Math.round(r.v/total*100)}%</span></button>`).join("")}</div>`;
-  const showC = r=>{ $("pcBig").textContent = money(r?r.v:(sel?sel.v:total)); $("pcSmall").textContent = r?`${r.name} · ${Math.round(r.v/total*100)}%`:(sel?sel.name:"total this month"); };
+  const showC = r=>{ $("pcBig").textContent = money(r?r.v:(sel?sel.v:total)); $("pcSmall").textContent = r?`${r.name} · ${Math.round(r.v/total*100)}%`:(sel?sel.name:(isInc?"income this month":"total this month")); };
   const hover = (id,on)=>{
     const p = wrap.querySelector(`path[data-id="${CSS.escape(id)}"]`), l = wrap.querySelector(`.legend button[data-id="${CSS.escape(id)}"]`);
     if(p && active!==id) p.style.transform = on?`translate(${p.dataset.dx}px,${p.dataset.dy}px)`:"";
@@ -723,36 +786,48 @@ function renderFilters(){
   if(ui.f.cat) chips.push(["cat", catOf(ui.f.cat).name]);
   if(ui.f.by)  chips.push(["by", ui.f.by]);
   if(ui.f.pay) chips.push(["pay", ui.f.pay]);
+  if(ui.f.source) chips.push(["source", "From " + ui.f.source]);
   if(ui.f.day) chips.push(["day", new Date(ui.f.day+"T00:00").toLocaleDateString(undefined,{day:"numeric",month:"short"})]);
   $("filters").innerHTML = chips.map(([k,l])=>`<button class="fchip" data-k="${k}" aria-label="Remove filter ${esc(l)}">${esc(l)} <span aria-hidden="true">✕</span></button>`).join("") +
     (chips.length>1 ? `<button class="fchip" data-k="all">Clear all</button>` : "");
 }
 $("filters").onclick = e=>{ const b=e.target.closest(".fchip"); if(!b) return;
-  if(b.dataset.k==="all") ui.f = {cat:null,pay:null,by:null,day:null,q:ui.f.q}; else ui.f[b.dataset.k]=null; render(); };
+  if(b.dataset.k==="all") ui.f = EMPTY_F(); else ui.f[b.dataset.k]=null; render(); };
 function renderList(){
   const f = ui.f;
-  if(me && !live.ready){ $("list").innerHTML = `<div class="empty">Loading the family's expenses…</div>`; return; }
-  const shown = monthItems().filter(x=>(!f.cat||x.cat===f.cat)&&(!f.pay||x.pay===f.pay)&&(!f.by||(x.by||"Someone")===f.by)&&(!f.day||x.date===f.day)
-     &&(!f.q || (x.note||"").toLowerCase().includes(f.q) || catOf(x.cat).name.toLowerCase().includes(f.q) || (x.by||"").toLowerCase().includes(f.q)))
+  if(!live.ready){ $("list").innerHTML = `<div class="empty">Loading the family's entries…</div>`; return; }
+  const base = ui.listType==="expense" ? monthItems() : ui.listType==="income" ? monthIncomes() : monthItems().concat(monthIncomes());
+  const shown = base.filter(x=>(!f.cat||x.cat===f.cat)&&(!f.pay||x.pay===f.pay)&&(!f.by||(x.by||"Someone")===f.by)&&(!f.day||x.date===f.day)
+     &&(!f.source||(x.kind==="income"&&x.source===f.source))
+     &&(!f.q || (x.note||"").toLowerCase().includes(f.q) || catOf(x.cat).name.toLowerCase().includes(f.q) || (x.by||"").toLowerCase().includes(f.q) || (x.source||"").toLowerCase().includes(f.q)))
      .sort((a,b)=>b.date.localeCompare(a.date) || (b.t||0)-(a.t||0));
-  if(!shown.length){ $("list").innerHTML = `<div class="empty">${monthItems().length?"Nothing matches these filters.":"No expenses this month. Add one above."}</div>`; return; }
+  if(!shown.length){ $("list").innerHTML = `<div class="empty">${base.length?"Nothing matches these filters.":"Nothing added this month yet. Add one above."}</div>`; return; }
   const groups = {}; shown.forEach(x=>(groups[x.date]=groups[x.date]||[]).push(x));
   $("list").innerHTML = Object.entries(groups).map(([d,arr])=>{
     const label = new Date(d+"T00:00").toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"short"});
-    return `<div class="day-group"><div class="day-head"><span>${label}</span><span class="num">${money(arr.reduce((s,x)=>s+x.amount,0))}</span></div>` +
-      arr.map(x=>{ const c=catOf(x.cat); return `<div class="item" data-id="${x.id}" tabindex="0" role="button" aria-label="Edit ${esc(c.name)} ${money(x.amount)}">
-        <span class="av" style="background:${c.color};${c.id==='other'||c.id==='bills'?'color:#1E1E1E':''}">${c.name[0]}</span>
-        <span class="info">${esc(c.name)}<small>${esc(x.by||"Someone")} · ${esc(x.pay)}${x.note?" · "+esc(x.note):""}</small></span>
-        <span class="amt num">${money(x.amount)}</span></div>`; }).join("") + `</div>`;
+    const out = arr.filter(x=>x.kind!=="income").reduce((s,x)=>s+x.amount,0), inn = arr.filter(x=>x.kind==="income").reduce((s,x)=>s+x.amount,0);
+    const head = [out ? money(out) : "", inn ? `<span style="color:#2F7D5B">+${money(inn)}</span>` : ""].filter(Boolean).join(" · ");
+    return `<div class="day-group"><div class="day-head"><span>${label}</span><span class="num">${head}</span></div>` +
+      arr.map(x=>{ const c=catOf(x.cat), inc = x.kind==="income", light = ['other','bills','interest','other_in','rent_in'].includes(c.id);
+        return `<div class="item" data-id="${x.id}" tabindex="0" role="button" aria-label="Edit ${inc?"income":"expense"} ${esc(c.name)} ${money(x.amount)}">
+        <span class="av" style="background:${c.color};${light?'color:#1E1E1E':''}">${inc ? "↓" : c.name[0]}</span>
+        <span class="info">${inc ? `${esc(c.name)} from ${esc(x.source||"someone")}` : esc(c.name)}<small>${esc(x.by||"Someone")} · ${esc(x.pay)}${x.note?" · "+esc(x.note):""}</small></span>
+        <span class="amt num${inc?" inc":""}">${inc?"+":""}${money(x.amount)}</span></div>`; }).join("") + `</div>`;
   }).join("");
 }
+$("typeSeg").onclick = e=>{ const b=e.target.closest("button"); if(!b) return; ui.listType = b.dataset.t;
+  $("typeSeg").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed", x===b)); renderList(); };
 $("list").addEventListener("click", e=>{ const it=e.target.closest(".item"); if(it) openEdit(it.dataset.id); });
 $("list").addEventListener("keydown", e=>{ const it=e.target.closest(".item"); if(it && (e.key==="Enter"||e.key===" ")){ e.preventDefault(); openEdit(it.dataset.id);} });
 
 /* ---------- edit, delete, undo ---------- */
 let editing = null;
 function openEdit(id){
-  editing = state.expenses.find(x=>x.id===id); if(!editing) return;
+  editing = allItems().find(x=>x.id===id); if(!editing) return;
+  const inc = editing.kind === "income";
+  $("eTitle").textContent = inc ? "Edit income" : "Edit expense";
+  $("eCat").innerHTML = (inc ? INCOME_CATS : CATEGORIES).map(c=>`<option value="${c.id}">${c.name}</option>`).join("");
+  $("eSrcField").hidden = !inc; $("eSource").value = editing.source || "";
   $("eCur").textContent = state.currency;
   $("eBy").textContent = `Added by ${editing.by||"someone"}`;
   $("eAmount").value = editing.amount; $("eCat").value = editing.cat; $("ePay").value = editing.pay;
@@ -762,16 +837,17 @@ function openEdit(id){
 $("eCancel").onclick = ()=>$("editDlg").close();
 $("eSave").onclick = ()=>{
   const a = parseFloat($("eAmount").value); if(!a||a<=0) return $("eAmount").focus();
-  Object.assign(editing, {amount:a, cat:$("eCat").value, pay:$("ePay").value, date:$("eDate").value||editing.date, note:$("eNote").value.trim()});
+  Object.assign(editing, {amount:a, cat:$("eCat").value, pay:$("ePay").value, date:$("eDate").value||editing.date, note:$("eNote").value.trim(),
+    source: editing.kind==="income" ? ($("eSource").value.trim() || editing.source) : ""});
   cache(); render(); enqueue({type:"upsert", row:toRow(editing)});
   $("editDlg").close(); toast("Changes saved.");
 };
 $("eDel").onclick = ()=>{
   const removed = editing;
-  state.expenses = state.expenses.filter(x=>x.id!==removed.id); cache(); render();
+  setAll(allItems().filter(x=>x.id!==removed.id)); cache(); render();
   enqueue({type:"delete", id:removed.id});
   $("editDlg").close();
-  toast(`Deleted ${money(removed.amount)}.`, ()=>{ state.expenses.push(removed); cache(); render(); enqueue({type:"upsert", row:toRow(removed)}); toast("Expense restored."); });
+  toast(`Deleted ${money(removed.amount)}.`, ()=>{ setAll(allItems().concat([removed])); cache(); render(); enqueue({type:"upsert", row:toRow(removed)}); toast("Restored."); });
 };
 let toastTimer;
 function toast(text, undo){
@@ -790,21 +866,20 @@ $("currency").onchange = e=>saveSetting({currency: e.target.value.trim()||"₹"}
 
 function download(name,text,type){ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type})); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
 $("csvBtn").onclick = ()=>{
-  const rows=[["Date","Category","Amount","Paid with","Added by","Note"],...[...state.expenses].sort((a,b)=>a.date.localeCompare(b.date)).map(x=>[x.date,catOf(x.cat).name,x.amount,x.pay,x.by||"",x.note||""])];
+  const rows=[["Date","Type","Category","Amount","From","Paid / received with","Added by","Note"],...allItems().sort((a,b)=>a.date.localeCompare(b.date)).map(x=>[x.date,x.kind==="income"?"Income":"Expense",catOf(x.cat).name,x.amount,x.source||"",x.pay,x.by||"",x.note||""])];
   download("family-expenses.csv", rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n"), "text/csv");
 };
 $("jsonBtn").onclick = ()=>{
-  const clean = state.expenses;
-  download(`family-expenses-backup-${isoToday()}.json`, JSON.stringify({expenses:clean,budget:state.budget,currency:state.currency},null,2), "application/json");
+  download(`family-expenses-backup-${isoToday()}.json`, JSON.stringify({expenses:state.expenses,incomes:state.incomes,budget:state.budget,currency:state.currency},null,2), "application/json");
 };
 
 async function uploadList(list){
   if(!me) throw new Error("Type your name first.");
   if(!navigator.onLine) throw new Error("Connect to the internet first.");
-  const existing = new Set(state.expenses.map(x=>x.id));
+  const existing = new Set(allItems().map(x=>x.id));
   const rows = list.filter(x=>x && Number(x.amount)>0 && x.date && !x.demo && !existing.has(String(x.id)))
     .map(x=>toRow({id:String(x.id||uid()), amount:Number(x.amount), cat:x.cat||"other", pay:x.pay==="Bank transfer"?"Bank":(x.pay||"Cash"),
-                   date:String(x.date).slice(0,10), note:x.note||"", by:x.by||firstName(me), byEmail:x.byEmail||me.email, t:x.t||Date.now()}));
+                   date:String(x.date).slice(0,10), note:x.note||"", by:x.by||firstName(me), byEmail:x.byEmail||me.email, t:x.t||Date.now(), kind:x.kind||"expense", source:x.source||""}));
   for(let i=0;i<rows.length;i+=500){
     const {error} = await sb.from("expenses").upsert(rows.slice(i,i+500));
     if(error) throw new Error(error.message);
@@ -817,7 +892,7 @@ $("importFile").onchange = e=>{
   const file=e.target.files[0]; if(!file) return; const r=new FileReader();
   r.onload = async ()=>{
     try{ const d=JSON.parse(r.result); if(!Array.isArray(d.expenses)) throw new Error("bad");
-      setMsg("Uploading…"); const n = await uploadList(d.expenses);
+      setMsg("Uploading…"); const n = await uploadList(d.expenses.concat(d.incomes||[]));
       setMsg(n ? `Added ${n} expense${n>1?"s":""} from the backup.` : "Everything in that backup is already in the family list."); }
     catch(err){ setMsg(err.message==="bad" ? "That file isn't a Daily Spend backup." : err.message, true); }
   };
@@ -861,7 +936,8 @@ if(/iphone|ipad/i.test(navigator.userAgent) && !standalone && !loadJSON("ds-ios-
 }
 
 /* ---------- boot ---------- */
-function render(){ if(!$("gate").hidden && !$("nameChips").hidden) renderNameChips(); $("curSym").textContent = state.currency; renderToday(); renderMonth(); renderPie(); renderFilters(); renderList(); }
+function updateSources(){ $("srcList").innerHTML = [...new Set(state.incomes.map(x=>x.source).filter(Boolean))].sort().map(n=>`<option value="${esc(n)}">`).join(""); }
+function render(){ updateSources(); if(!$("gate").hidden && !$("nameChips").hidden) renderNameChips(); $("curSym").textContent = state.currency; renderToday(); renderMonth(); renderPie(); renderFilters(); renderList(); }
 buildForm();
 $("date").value = isoToday();
 render(); updateSync();
